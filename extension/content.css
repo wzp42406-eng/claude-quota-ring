@@ -50,26 +50,30 @@
 #cq-meter .cq-quota { display: flex; align-items: center; gap: 5px; }
 #cq-meter .cq-quota[hidden] { display: none; }
 
-/* 今日用量：上行时长、下行 token，两行窄排；和 5h 百分比之间用细竖线隔开 */
-#cq-meter .cq-stats {
+/* 名字下方的用量行 */
+#cq-line {
+  position: fixed;
+  z-index: 40;
   display: flex;
-  flex-direction: column;
-  gap: 1px;
+  align-items: baseline;
+  gap: 4px;
+  font-size: 11px;
+  line-height: 1.2;
   color: var(--cq-gray);
-  font-size: 0.85em;
-  line-height: 1.1;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  cursor: default;
+  animation: cq-in 260ms ease both;
 }
-#cq-meter .cq-quota:not([hidden]) + .cq-stats {
-  padding-left: 6px;
-  border-left: 1px solid var(--cq-hair);
-}
-#cq-meter .cq-tok::after { content: ' tok'; opacity: 0.7; }
+#cq-line[hidden] { display: none; }
+#cq-line .cq-label, #cq-line .cq-dot { opacity: 0.75; }
+#cq-line .cq-five { margin-right: 4px; padding-right: 7px; border-right: 1px solid var(--cq-hair); }
+#cq-line .cq-five[hidden] { display: none; }
+#cq-line:hover { color: hsl(var(--text-200, 50 2.3% 34%)); }
+html[data-cq-site="chatgpt"] #cq-line:hover { color: var(--text-primary, #0d0d0d); }
 
-/* 空间不够时逐级收起 */
+/* 空间不够时只留圆环 */
 #cq-meter[data-compact] .cq-nums { display: none; }
-#cq-meter[data-compact="stats"] .cq-stats { display: none; }
 
 @media (prefers-reduced-motion: reduce) {
   #cq-meter, #cq-meter .cq-arc { transition: none; animation: none; }

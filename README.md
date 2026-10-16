@@ -16,9 +16,9 @@ Show your remaining Claude usage (5-hour and 7-day windows) right in the Claude 
 - 颜色和字体沿用 claude.ai 自己的 CSS 变量，跟随浅色和深色主题；空间不够时只保留圆环。
 - 只请求 claude.ai 自己的 `/api/organizations` 和 `/api/organizations/<id>/usage`，每 2 分钟刷新一次。不收集、不上传任何数据。
 
-### AI 用量统计（v0.6.0 起）
+### AI 用量统计（v0.6.0 起，v0.7.0 改到名字下方）
 
-- 圆环右侧用两行小字显示**今天在当前网站的使用时长和 token**：在 claude.ai 显示 Claude 的，在 chatgpt.com 显示 ChatGPT 的。
+- 名字下方一行小字显示**今天在当前网站的使用时长和 token**（如 `今日 1h12m · 4.0k tokens`）：在 claude.ai 显示 Claude 的，在 chatgpt.com 显示 ChatGPT 的。圆环旁放不下 5 小时百分比时，百分比会挪到这一行开头。
 - 悬停卡片里有 Claude、ChatGPT 各自的今日时长 / token、两者**合计**，以及近 7 天合计。
 - 时长：页面在前台、窗口有焦点，并且 3 分钟内有操作（或正在生成回复）才计时。
 - Token：只统计在页面上实时发出和生成的消息（打开历史对话不会重复计），按文字估算：中日韩字符约 1 字 1 token，其他约 4 字符 1 token。**这是估算**，不含系统提示、联网/文件内容和每轮重复发送的上下文，比官方计费的 token 少。

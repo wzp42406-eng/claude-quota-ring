@@ -255,13 +255,23 @@
     quota.append(svg, nums)
     quota.hidden = true
 
-    const stats = el('div', 'cq-stats')
-    stats.append(el('span', 'cq-time'), el('span', 'cq-tok'))
-
-    meter.append(quota, stats)
+    meter.append(quota)
     meter.addEventListener('mouseenter', openCard)
     meter.addEventListener('mouseleave', closeCard)
     return meter
+  }
+
+  // 名字下方一行：今日 1h12m · 4.0k tokens
+  function buildLine() {
+    const line = el('div')
+    line.id = 'cq-line'
+    line.setAttribute('role', 'status')
+    const five = el('span', 'cq-five')
+    five.hidden = true
+    line.append(five, el('span', 'cq-label', '今日'), el('span', 'cq-time'), el('span', 'cq-dot', '·'), el('span', 'cq-tok'))
+    line.addEventListener('mouseenter', openCard)
+    line.addEventListener('mouseleave', closeCard)
+    return line
   }
 
   function card() {
@@ -325,8 +335,11 @@
     const c = card()
     const r = ev.currentTarget.getBoundingClientRect()
     c.style.left = `${Math.max(8, r.left - 8)}px`
-    c.style.bottom = `${window.innerHeight - r.top + 10}px`
+    // 上方放不下（头像行在侧栏顶部时）就往下展开
+    c.style.top = c.style.bottom = ''
     c.setAttribute('data-open', '')
+    if (r.top - c.offsetHeight - 10 < 8) c.style.top = `${r.bottom + 10}px`
+    else c.style.bottom = `${window.innerHeight - r.top + 10}px`
   }
 
   function closeCard() {
@@ -336,16 +349,30 @@
   // ======================================================================
   // 摆放
   // ======================================================================
-  // 头像行里实际内容（名字、套餐、箭头）在屏幕上的右边界
-  function contentRight(button) {
-    let right = 0
+  // 头像行里文字（名字、套餐）在屏幕上占的范围
+  function textBox(button) {
+    const box = { left: Infinity, right: 0, bottom: 0 }
     const range = document.createRange()
     const walker = document.createTreeWalker(button, NodeFilter.SHOW_TEXT)
     for (let n = walker.nextNode(); n; n = walker.nextNode()) {
       if (!n.textContent.trim()) continue
+      // 跳过头像里的字母（小方块/圆形元素里的文字）
+      const p = n.parentElement && n.parentElement.getBoundingClientRect()
+      if (p && p.width <= 48 && Math.abs(p.width - p.height) < 4) continue
       range.selectNodeContents(n)
-      for (const r of range.getClientRects()) right = Math.max(right, r.right)
+      for (const r of range.getClientRects()) {
+        if (!r.width) continue
+        box.left = Math.min(box.left, r.left)
+        box.right = Math.max(box.right, r.right)
+        box.bottom = Math.max(box.bottom, r.bottom)
+      }
     }
+    return box
+  }
+
+  // 头像行里实际内容（名字、套餐、箭头）在屏幕上的右边界
+  function contentRight(button) {
+    let right = textBox(button).right
     for (const e of button.querySelectorAll('svg, img')) {
       const r = e.getBoundingClientRect()
       if (r.width > 0) right = Math.max(right, r.right)
@@ -371,17 +398,19 @@
     return limit
   }
 
-  // 空间不够时逐级收起：先收额度百分比，再收用量文字（只剩圆环）
-  const COMPACT = ['', 'nums', 'stats']
-
   // 浮在头像行上、贴着名字右侧；不插进页面布局，所以不会被挤到下一行
   function place() {
     const meter = document.getElementById('cq-meter')
+    const line = document.getElementById('cq-line')
     const button = findAccountButton()
-    if (!meter || !button) return
+    if (!meter || !line || !button) return
     const b = button.getBoundingClientRect()
-    if (b.width < 120 || b.height === 0) { meter.hidden = true; return }
-    meter.hidden = false
+    if (b.width < 120 || b.height === 0) { meter.hidden = line.hidden = true; return }
+    placeLine(line, button)
+    const five = line.querySelector('.cq-five')
+    five.hidden = true
+    meter.hidden = meter.querySelector('.cq-quota').hidden
+    if (meter.hidden) return
 
     const quiet = quietText(button)
     if (quiet) {
@@ -392,18 +421,25 @@
 
     const x = contentRight(button) + 10
     const limit = rightLimit(button, x)
-    const hasRing = !meter.querySelector('.cq-quota').hidden
-    let fit = false
-    for (const level of COMPACT) {
-      if (level === 'stats' && !hasRing) break // 没有圆环时，收起用量就什么都不剩了
-      if (level) meter.dataset.compact = level
-      else delete meter.dataset.compact
-      if (x + meter.offsetWidth <= limit) { fit = true; break }
+    // 圆环旁放不下 5 小时百分比时，把它挪到下方用量行的开头
+    delete meter.dataset.compact
+    if (x + meter.offsetWidth > limit) {
+      meter.dataset.compact = ''
+      five.hidden = !meter.querySelector('.cq-num').textContent
     }
-    if (!fit) { meter.hidden = true; return }
+    if (x + meter.offsetWidth > limit) { meter.hidden = true; return }
 
     meter.style.left = `${Math.round(x)}px`
     meter.style.top = `${Math.round(b.top + b.height / 2 - meter.offsetHeight / 2)}px`
+  }
+
+  // 用量行：左边和名字对齐，紧贴名字（或套餐）文字的下方
+  function placeLine(line, button) {
+    const t = textBox(button)
+    if (!isFinite(t.left)) { line.hidden = true; return }
+    line.hidden = false
+    line.style.left = `${Math.round(t.left)}px`
+    line.style.top = `${Math.round(t.bottom + 1)}px`
   }
 
   let observed = null
@@ -417,6 +453,11 @@
     if (!meter) {
       meter = buildMeter()
       document.body.appendChild(meter)
+    }
+    let line = document.getElementById('cq-line')
+    if (!line) {
+      line = buildLine()
+      document.body.appendChild(line)
     }
     if (observed !== button) {
       resize.disconnect()
@@ -437,13 +478,14 @@
     const num = meter.querySelector('.cq-num')
     num.hidden = !five
     num.textContent = five ? `${left(five.used)}%` : ''
+    line.querySelector('.cq-five').textContent = five ? `5h ${left(five.used)}%` : ''
 
     const mine = statsFor(dayKey(), SITE)
-    meter.querySelector('.cq-time').textContent = fmtTime(mine.ms)
-    meter.querySelector('.cq-tok').textContent = fmtTok(mine.tok)
+    line.querySelector('.cq-time').textContent = fmtTime(mine.ms)
+    line.querySelector('.cq-tok').textContent = `${fmtTok(mine.tok)} tokens`
+    line.setAttribute('aria-label', `今日 ${SITE_NAME[SITE]} 使用 ${fmtTime(mine.ms)}，约 ${fmtTok(mine.tok)} token`)
 
     const parts = list.map(w => `${LABELS[w.kind]}剩 ${left(w.used)}%`)
-    parts.push(`今日 ${SITE_NAME[SITE]} 使用 ${fmtTime(mine.ms)}，约 ${fmtTok(mine.tok)} token`)
     meter.setAttribute('aria-label', parts.join('，'))
     place()
     if (document.getElementById('cq-card')?.hasAttribute('data-open')) fillCard()
