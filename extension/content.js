@@ -63,9 +63,7 @@
   }
 
   // ---------- 绘制 ----------
-  const SVG = 'http://www.w3.org/2000/svg'
-  const R = 7
-  const C = 2 * Math.PI * R
+  const SHORT = { five_hour: '5h', seven_day: '7d' }
 
   function el(tag, cls, text) {
     const e = document.createElement(tag)
@@ -74,30 +72,22 @@
     return e
   }
 
-  function buildRing() {
-    const ring = el('span')
-    ring.id = 'cq-ring'
-    ring.setAttribute('role', 'status')
-    const svg = document.createElementNS(SVG, 'svg')
-    svg.setAttribute('width', '18')
-    svg.setAttribute('height', '18')
-    svg.setAttribute('viewBox', '0 0 18 18')
-    for (const cls of ['cq-track', 'cq-arc']) {
-      const c = document.createElementNS(SVG, 'circle')
-      c.setAttribute('class', cls)
-      c.setAttribute('cx', '9')
-      c.setAttribute('cy', '9')
-      c.setAttribute('r', String(R))
-      c.setAttribute('fill', 'none')
-      c.setAttribute('stroke-width', '2')
-      c.setAttribute('stroke-linecap', 'round')
-      if (cls === 'cq-arc') c.setAttribute('stroke-dasharray', String(C))
-      svg.appendChild(c)
+  // 名字右侧的两行细线额度表：标签 · 细进度条 · 百分比
+  function buildMeter() {
+    const meter = el('div')
+    meter.id = 'cq-meter'
+    meter.setAttribute('role', 'status')
+    for (const kind of ['five_hour', 'seven_day']) {
+      const row = el('div', 'cq-line')
+      row.dataset.kind = kind
+      const track = el('span', 'cq-track')
+      track.appendChild(el('i', 'cq-fill'))
+      row.append(el('span', 'cq-tag', SHORT[kind]), track, el('span', 'cq-pct'))
+      meter.appendChild(row)
     }
-    ring.append(svg, el('span', 'cq-num'))
-    ring.addEventListener('mouseenter', openCard)
-    ring.addEventListener('mouseleave', closeCard)
-    return ring
+    meter.addEventListener('mouseenter', openCard)
+    meter.addEventListener('mouseleave', closeCard)
+    return meter
   }
 
   function card() {
@@ -151,18 +141,21 @@
     const button = findAccountButton()
     if (!button) return
 
-    let ring = document.getElementById('cq-ring')
-    if (!ring) ring = buildRing()
-    if (ring.previousElementSibling !== button) button.after(ring)
+    let meter = document.getElementById('cq-meter')
+    if (!meter) meter = buildMeter()
+    if (meter.previousElementSibling !== button) button.after(meter)
 
-    // 主显示取最紧的窗口
-    const tight = list.reduce((a, b) => (b.used > a.used ? b : a))
-    const pct = left(tight.used)
-    ring.querySelector('.cq-arc').setAttribute('stroke-dashoffset', String(C * (1 - pct / 100)))
-    ring.querySelector('.cq-num').textContent = `${pct}%`
-    ring.dataset.level = pct <= 10 ? 'low' : 'ok'
-    ring.toggleAttribute('data-compact', button.offsetWidth < 80)
-    ring.setAttribute('aria-label', list.map(w => `${LABELS[w.kind]}剩 ${left(w.used)}%`).join('，'))
+    for (const row of meter.querySelectorAll('.cq-line')) {
+      const w = list.find(x => x.kind === row.dataset.kind)
+      row.hidden = !w
+      if (!w) continue
+      const pct = left(w.used)
+      row.querySelector('.cq-fill').style.transform = `scaleX(${pct / 100})`
+      row.querySelector('.cq-pct').textContent = `${pct}%`
+      row.dataset.level = pct <= 10 ? 'low' : 'ok'
+    }
+    meter.toggleAttribute('data-compact', meter.offsetWidth > 0 && meter.offsetWidth < 64)
+    meter.setAttribute('aria-label', list.map(w => `${LABELS[w.kind]}剩 ${left(w.used)}%`).join('，'))
     if (document.getElementById('cq-card')?.hasAttribute('data-open')) fillCard()
   }
 
@@ -173,8 +166,8 @@
     scheduled = true
     requestAnimationFrame(() => {
       scheduled = false
-      const ring = document.getElementById('cq-ring')
-      if (!ring || !ring.isConnected || ring.previousElementSibling !== findAccountButton()) render()
+      const meter = document.getElementById('cq-meter')
+      if (!meter || !meter.isConnected || meter.previousElementSibling !== findAccountButton()) render()
     })
   }).observe(document.body, { childList: true, subtree: true })
 

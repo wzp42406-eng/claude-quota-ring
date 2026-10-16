@@ -1,32 +1,70 @@
 /* 跟随 claude.ai 自身的设计变量；变量缺失时用接近的默认值 */
-#cq-ring {
-  --cq-track: hsl(var(--border-300, 30 3.3% 11.8%) / 0.25);
+#cq-meter {
   --cq-accent: hsl(var(--accent-main-100, 15 55.6% 52.4%));
   --cq-danger: hsl(var(--danger-100, 0 58.6% 34.1%));
-  --cq-text: hsl(var(--text-400, 48 4.8% 59.2%));
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  flex-shrink: 0;
-  height: 28px;
-  padding: 0 6px;
-  margin-left: 2px;
+  --cq-faint: hsl(var(--text-500, 48 4.8% 59.2%));
+  --cq-quiet: hsl(var(--text-300, 50 2.3% 45%));
+  --cq-hair: hsl(var(--border-300, 30 3.3% 11.8%) / 0.12);
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 168px;
+  margin: 0 2px 0 auto;
+  padding: 4px 6px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
   border-radius: 8px;
-  font: inherit;
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-  color: var(--cq-text);
   cursor: default;
-  position: relative;
-  transition: background-color 150ms ease;
+  font: inherit;
+  transition: background-color 160ms ease;
 }
-#cq-ring:hover { background: hsl(var(--bg-300, 48 7% 90%) / 0.6); }
-#cq-ring svg { display: block; transform: rotate(-90deg); }
-#cq-ring .cq-track { stroke: var(--cq-track); }
-#cq-ring .cq-arc { stroke: var(--cq-accent); transition: stroke-dashoffset 400ms ease; }
-#cq-ring[data-level="low"] .cq-arc { stroke: var(--cq-danger); }
-#cq-ring[data-level="low"] .cq-num { color: var(--cq-danger); }
-#cq-ring[data-compact] .cq-num { display: none; }
+#cq-meter:hover { background: hsl(var(--bg-300, 48 7% 90%) / 0.5); }
+
+#cq-meter .cq-line {
+  display: grid;
+  grid-template-columns: 12px 1fr 24px;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  line-height: 1;
+  letter-spacing: 0.02em;
+}
+#cq-meter .cq-line[hidden] { display: none; }
+#cq-meter .cq-tag { color: var(--cq-faint); }
+#cq-meter .cq-pct {
+  text-align: right;
+  color: var(--cq-quiet);
+  font-variant-numeric: tabular-nums;
+}
+#cq-meter .cq-track {
+  position: relative;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--cq-hair);
+  overflow: hidden;
+}
+#cq-meter .cq-fill {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--cq-accent);
+  transform-origin: left center;
+  transform: scaleX(0);
+  transition: transform 700ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+#cq-meter .cq-line[data-kind="seven_day"] .cq-fill { opacity: 0.45; }
+#cq-meter .cq-line[data-level="low"] .cq-fill { background: var(--cq-danger); opacity: 1; }
+#cq-meter .cq-line[data-level="low"] .cq-pct { color: var(--cq-danger); }
+
+/* 侧栏收窄时只留百分比 */
+#cq-meter[data-compact] .cq-line { grid-template-columns: 1fr; }
+#cq-meter[data-compact] .cq-tag,
+#cq-meter[data-compact] .cq-track { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  #cq-meter .cq-fill { transition: none; }
+}
 
 #cq-card {
   position: fixed;
