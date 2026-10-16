@@ -393,15 +393,24 @@
   // 摆放
   // ======================================================================
   // 头像行里文字（名字、套餐）在屏幕上占的范围
+  // 头像里的首字母：1～2 个字符，且在圆形元素里（「Pro」这类小标签不算）
+  function inAvatar(node, button) {
+    if (node.textContent.trim().length > 2) return false
+    for (let e = node.parentElement, i = 0; e && e !== button && i < 4; e = e.parentElement, i++) {
+      const r = e.getBoundingClientRect()
+      const radius = parseFloat(getComputedStyle(e).borderTopLeftRadius) || 0
+      if (r.width > 0 && r.width <= 56 && radius >= r.width * 0.35) return true
+    }
+    return false
+  }
+
   function textBox(button) {
     const box = { left: Infinity, right: 0, bottom: 0 }
     const range = document.createRange()
     const walker = document.createTreeWalker(button, NodeFilter.SHOW_TEXT)
     for (let n = walker.nextNode(); n; n = walker.nextNode()) {
       if (!n.textContent.trim()) continue
-      // 跳过头像里的字母（小方块/圆形元素里的文字）
-      const p = n.parentElement && n.parentElement.getBoundingClientRect()
-      if (p && p.width <= 48 && Math.abs(p.width - p.height) < 4) continue
+      if (inAvatar(n, button)) continue
       range.selectNodeContents(n)
       for (const r of range.getClientRects()) {
         if (!r.width) continue
@@ -416,11 +425,14 @@
   // 头像行里实际内容（名字、套餐、箭头）在屏幕上的右边界
   function contentRight(button) {
     let right = textBox(button).right
+    let hidden = 0
     for (const e of button.querySelectorAll('svg, img')) {
       const r = e.getBoundingClientRect()
       if (r.width > 0) right = Math.max(right, r.right)
+      else if (!inAvatar(e, button)) hidden++
     }
-    return right
+    // 悬停才出现的图标（如下拉箭头）平时量不到宽度：给它预留位置
+    return right + (hidden ? 24 : 0)
   }
 
   // 「Pro」「Plus」这类次要文字：数字沿用它的字号和字体，和这一行融为一体
@@ -462,13 +474,14 @@
       meter.style.fontFamily = cs.fontFamily
     }
 
-    const x = contentRight(button) + 10
-    const limit = rightLimit(button, x)
-    // 放不下百分比时只留圆环（额度和用量分开两行，不混在一起）
+    // 靠这一行右端摆（紧挨右侧图标左边），离名字越远越安全：
+    // 名字后面那种悬停才出现的下拉箭头量不到，贴着名字放会压住它
+    const minX = contentRight(button) + 10
+    const limit = rightLimit(button, minX)
     delete meter.dataset.compact
-    if (x + meter.offsetWidth > limit) meter.dataset.compact = ''
-    if (x + meter.offsetWidth > limit) { meter.hidden = true; return }
-    if (x + meter.offsetWidth > b.right + 200) { meter.hidden = true; return } // 防止算出离谱位置
+    if (limit - meter.offsetWidth < minX) meter.dataset.compact = '' // 放不下百分比时只留圆环
+    if (limit - meter.offsetWidth < minX) { meter.hidden = true; return }
+    const x = limit - meter.offsetWidth
 
     meter.style.left = `${Math.round(x)}px`
     meter.style.top = `${Math.round(b.top + b.height / 2 - meter.offsetHeight / 2)}px`
