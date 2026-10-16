@@ -35,7 +35,10 @@
   // 额度（仅 claude.ai）
   // ======================================================================
   const QUOTA_MS = 2 * 60 * 1000
-  const LABELS = { five_hour: '5 小时额度', seven_day: '7 天额度' }
+  // chatgpt.com 的网页对话没有公开的余量：显示同一 ChatGPT 账号的 Codex 额度（来自本机用量 API）
+  const LABELS = SITE === 'claude'
+    ? { five_hour: '5 小时额度', seven_day: '7 天额度' }
+    : { five_hour: 'Codex 5 小时额度', seven_day: 'Codex 7 天额度' }
   let usage = null
   let fetchedAt = 0
   let orgId = null
@@ -46,8 +49,22 @@
     return r.json()
   }
 
+  // ChatGPT 账号的 Codex 额度：由扩展后台向本机用量 API 要；没装 API 就不显示
+  async function refreshCodexQuota() {
+    if (!alive()) return
+    try {
+      const q = await chrome.runtime.sendMessage({ type: 'getQuota' })
+      const codex = q && q.codex
+      if (!codex || !Object.keys(codex).length) return
+      usage = {}
+      for (const [k, w] of Object.entries(codex)) usage[k] = { utilization: w.used_percent, resets_at: w.resets_at }
+      fetchedAt = Date.parse(codex.five_hour?.observed_at || '') || Date.now()
+      render()
+    } catch { /* 扩展已重载或 API 没开 */ }
+  }
+
   async function refreshQuota() {
-    if (SITE !== 'claude') return
+    if (SITE !== 'claude') return refreshCodexQuota()
     try {
       if (!orgId) {
         const orgs = await getJson('/api/organizations')
@@ -368,7 +385,9 @@
     }
     if (windows().length) {
       const mins = Math.round((Date.now() - fetchedAt) / 60000)
-      c.appendChild(el('div', 'cq-foot', mins < 1 ? '额度刚刚更新' : `额度 ${mins} 分钟前更新`))
+      c.appendChild(el('div', 'cq-foot', SITE === 'claude'
+        ? (mins < 1 ? '额度刚刚更新' : `额度 ${mins} 分钟前更新`)
+        : `ChatGPT 网页对话的次数上限官方不公开；这里是同一账号 Codex 的额度，读数来自 ${mins < 1 ? '刚刚' : `${mins} 分钟前`}的 Codex 使用记录。`))
       c.appendChild(el('div', 'cq-sep'))
     }
     c.appendChild(statsTable())

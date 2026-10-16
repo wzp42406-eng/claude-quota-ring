@@ -115,6 +115,13 @@ def set_quota(source, limits):
         save(QUOTA, q)
 
 
+def _ts_before_now(iso):
+    try:
+        return dt.datetime.fromisoformat(str(iso).replace('Z', '+00:00')) < dt.datetime.now(dt.timezone.utc)
+    except ValueError:
+        return False
+
+
 def quota_view():
     out = {}
     q = load(QUOTA, {})
@@ -124,11 +131,16 @@ def quota_view():
         for kind, w in windows.items():
             seen = w.get('observed_at') or (dt.datetime.fromtimestamp(w['observed_ms'] / 1000).astimezone()
                                             .isoformat(timespec='seconds') if w.get('observed_ms') else None)
+            used = w['used_percent']
+            reset = w.get('resets_at')
+            # 读数之后窗口已经重置：额度回满，等下次使用再拿到新读数
+            passed = bool(reset) and _ts_before_now(reset)
             out[source][kind] = {
-                'used_percent': w['used_percent'],
-                'remaining_percent': max(0, round(100 - w['used_percent'], 1)),
-                'resets_at': w.get('resets_at'),
+                'used_percent': 0.0 if passed else used,
+                'remaining_percent': 100.0 if passed else max(0, round(100 - used, 1)),
+                'resets_at': None if passed else reset,
                 'observed_at': seen,
+                'reset_since': passed,
             }
     return out
 
@@ -318,7 +330,9 @@ class Handler(BaseHTTPRequestHandler):
         merge(days)
         if obj.get('quota'):
             set_quota('claude', obj['quota'])
-        return self.reply(200, {'ok': True, 'days': len(days)})
+        scan_cli()
+        # 顺带把额度回给扩展：chatgpt.com 上显示同一账号的 Codex 额度
+        return self.reply(200, {'ok': True, 'days': len(days), 'quota': quota_view()})
 
 
 def public_snapshot(days=60):

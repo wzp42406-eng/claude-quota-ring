@@ -52,6 +52,11 @@ async function sendQuota(limits) {
 }
 
 chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
+  if (msg && msg.type === 'getQuota') {
+    fetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ days: {} }) })
+      .then(r => r.json()).then(d => reply(d.quota || null)).catch(() => reply(null))
+    return true
+  }
   if (msg && msg.type === 'quota' && Array.isArray(msg.limits)) {
     sendQuota(msg.limits).then(() => reply(true))
     return true
