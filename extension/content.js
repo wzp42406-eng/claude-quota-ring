@@ -1,21 +1,53 @@
-// Claude 额度环：在左下角头像行显示额度剩余。只请求 claude.ai 自己的接口，数据不出本机。
+// 名字右侧的小浮层：Claude 额度环（仅 claude.ai）+ 今日 AI 使用时长与 token（claude.ai / chatgpt.com）。
+// 额度只请求 claude.ai 自己的接口；用量只在本机统计、存在扩展本地存储里，不上传。
 (() => {
-  const REFRESH_MS = 2 * 60 * 1000
-  const PLAN = /(Free|Pro|Max|Team|Enterprise)\b/
-  const LABELS = { five_hour: '5 小时额度', seven_day: '7 天额度' }
+  const SITE = location.hostname.endsWith('claude.ai') ? 'claude' : 'chatgpt'
+  const SITE_NAME = { claude: 'Claude', chatgpt: 'ChatGPT' }
 
+  const ADAPTERS = {
+    claude: {
+      plan: /(Free|Pro|Max|Team|Enterprise)\b/,
+      accountButton: () => document.querySelector('[data-testid="user-menu-button"]'),
+      userMessages: () => document.querySelectorAll('[data-testid="user-message"]'),
+      assistantMessages: () => document.querySelectorAll('[data-is-streaming]'),
+      generating: () => !!document.querySelector('[data-is-streaming="true"]'),
+    },
+    chatgpt: {
+      plan: /(Free|Go|Plus|Pro|Team|Business|Enterprise)\b/,
+      accountButton: () => document.querySelector('[data-testid="accounts-profile-button"]'),
+      userMessages: () => document.querySelectorAll('[data-message-author-role="user"]'),
+      assistantMessages: () => document.querySelectorAll('[data-message-author-role="assistant"]'),
+      generating: () => !!document.querySelector(
+        '[data-testid="stop-button"], button[aria-label*="Stop" i], .result-streaming'),
+    },
+  }
+  const site = ADAPTERS[SITE]
+  document.documentElement.dataset.cqSite = SITE
+
+  const el = (tag, cls, text) => {
+    const e = document.createElement(tag)
+    if (cls) e.className = cls
+    if (text != null) e.textContent = text
+    return e
+  }
+
+  // ======================================================================
+  // 额度（仅 claude.ai）
+  // ======================================================================
+  const QUOTA_MS = 2 * 60 * 1000
+  const LABELS = { five_hour: '5 小时额度', seven_day: '7 天额度' }
   let usage = null
   let fetchedAt = 0
   let orgId = null
 
-  // ---------- 数据 ----------
   async function getJson(path) {
     const r = await fetch(path, { credentials: 'include' })
     if (!r.ok) throw new Error(String(r.status))
     return r.json()
   }
 
-  async function refresh() {
+  async function refreshQuota() {
+    if (SITE !== 'claude') return
     try {
       if (!orgId) {
         const orgs = await getJson('/api/organizations')
@@ -52,28 +84,141 @@
     return `${m} 分钟后重置`
   }
 
-  // ---------- 定位头像行 ----------
-  function findAccountButton() {
-    const byTestId = document.querySelector('[data-testid="user-menu-button"]')
-    if (byTestId) return byTestId
-    const nav = document.querySelector('nav') || document.querySelector('[class*="z-sidebar"]')
-    if (!nav) return null
-    const buttons = [...nav.querySelectorAll('button')].filter(b => b.offsetWidth > 0)
-    return buttons.reverse().find(b => PLAN.test(b.textContent || '')) || null
+  // ======================================================================
+  // 用量统计：使用时长 + token 估算
+  // ======================================================================
+  const TICK_MS = 1000
+  const FLUSH_MS = 15000
+  const IDLE_MS = 3 * 60 * 1000 // 3 分钟无操作且没在生成回复，就不再计时
+
+  const pad = n => String(n).padStart(2, '0')
+  const dayKey = (t = Date.now()) => {
+    const d = new Date(t)
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
   }
 
-  // ---------- 绘制 ----------
+  // 中日韩字符约 1 字 1 token，其他文字约 4 字符 1 token；只是估算
+  function estimateTokens(text) {
+    if (!text) return 0
+    const cjk = (text.match(/[぀-ヿ㐀-鿿가-힯豈-﫿＀-￯]/g) || []).length
+    const rest = text.replace(/\s+/g, ' ').trim().length - cjk
+    return Math.round(cjk + Math.max(0, rest) / 4)
+  }
+
+  let stored = {}            // 近 7 天：{ 'YYYY-MM-DD': { claude: {ms,tok}, chatgpt: {ms,tok} } }
+  let pending = { ms: 0, tok: 0, day: dayKey() }
+  let lastInput = Date.now()
+  let lastTick = Date.now()
+  let wasGenerating = false
+  const counted = new WeakSet()
+
+  const alive = () => { try { return !!chrome.runtime?.id } catch { return false } }
+
+  function flush() {
+    if (!pending.ms && !pending.tok) return
+    if (!alive()) return
+    const msg = { type: 'usage', site: SITE, day: pending.day, ms: Math.round(pending.ms), tok: pending.tok }
+    try {
+      chrome.runtime.sendMessage(msg).catch(() => {})
+      pending = { ms: 0, tok: 0, day: dayKey() }
+    } catch { /* 扩展已重载 */ }
+  }
+
+  function addPending(ms, tok) {
+    if (pending.day !== dayKey()) {
+      flush() // 跨零点：先把昨天的写掉
+      pending = { ms: 0, tok: 0, day: dayKey() }
+    }
+    pending.ms += ms
+    pending.tok += tok
+  }
+
+  function countOnce(node) {
+    if (!node || counted.has(node)) return
+    counted.add(node)
+    const tok = estimateTokens(node.textContent || '')
+    if (tok) { addPending(0, tok); render() }
+  }
+
+  const lastOf = list => (list.length ? list[list.length - 1] : null)
+
+  // 只统计在本页实时发出/生成的消息：打开历史对话不会重复计数
+  function trackMessages() {
+    const gen = site.generating()
+    if (gen && !wasGenerating) countOnce(lastOf(site.userMessages()))
+    if (!gen && wasGenerating) countOnce(lastOf(site.assistantMessages()))
+    wasGenerating = gen
+    return gen
+  }
+
+  function tick() {
+    const now = Date.now()
+    const dt = Math.min(now - lastTick, 5000) // 休眠/卡顿后不补算
+    lastTick = now
+    const gen = trackMessages()
+    const active = document.visibilityState === 'visible' && document.hasFocus() &&
+      (gen || now - lastInput < IDLE_MS)
+    if (active) addPending(dt, 0)
+  }
+
+  async function loadStored() {
+    if (!alive()) return
+    const keys = []
+    for (let i = 0; i < 7; i++) keys.push(`u:${dayKey(Date.now() - i * 864e5)}`)
+    try {
+      const got = await chrome.storage.local.get(keys)
+      stored = {}
+      for (const [k, v] of Object.entries(got)) stored[k.slice(2)] = v
+    } catch { /* 扩展已重载 */ }
+  }
+
+  // 已存的 + 本页尚未写入的
+  function statsFor(day, which) {
+    const s = (stored[day] && stored[day][which]) || { ms: 0, tok: 0 }
+    if (which === SITE && pending.day === day) return { ms: s.ms + pending.ms, tok: s.tok + pending.tok }
+    return { ms: s.ms, tok: s.tok }
+  }
+
+  function sumDays(which, days) {
+    let ms = 0, tok = 0
+    for (let i = 0; i < days; i++) {
+      const s = statsFor(dayKey(Date.now() - i * 864e5), which)
+      ms += s.ms; tok += s.tok
+    }
+    return { ms, tok }
+  }
+
+  function fmtTime(ms) {
+    const m = Math.floor(ms / 60000)
+    if (m < 60) return `${m}m`
+    return `${Math.floor(m / 60)}h${pad(m % 60)}m`
+  }
+
+  function fmtTok(n) {
+    if (n < 1000) return String(n)
+    if (n < 1e6) return `${(n / 1000).toFixed(n < 1e4 ? 1 : 0)}k`
+    return `${(n / 1e6).toFixed(1)}M`
+  }
+
+  // ======================================================================
+  // 定位头像行
+  // ======================================================================
+  function findAccountButton() {
+    const direct = site.accountButton()
+    if (direct && direct.offsetWidth > 0) return direct
+    const nav = document.querySelector('nav') || document.querySelector('[class*="z-sidebar"]')
+    if (!nav) return null
+    const buttons = [...nav.querySelectorAll('button, a, [role="button"]')].filter(b => b.offsetWidth > 0)
+    return buttons.reverse().find(b => site.plan.test(b.textContent || '')) || null
+  }
+
+  // ======================================================================
+  // 绘制
+  // ======================================================================
   // 同心圆：外圈 5 小时（灰），内圈 7 天（红）；弧长 = 剩余量
   const SVG = 'http://www.w3.org/2000/svg'
   const RINGS = { five_hour: 8, seven_day: 4.5 }
   const CIRC = r => 2 * Math.PI * r
-
-  function el(tag, cls, text) {
-    const e = document.createElement(tag)
-    if (cls) e.className = cls
-    if (text != null) e.textContent = text
-    return e
-  }
 
   function circle(cls, r) {
     const c = document.createElementNS(SVG, 'circle')
@@ -88,6 +233,8 @@
     const meter = el('div')
     meter.id = 'cq-meter'
     meter.setAttribute('role', 'status')
+
+    const quota = el('div', 'cq-quota')
     const svg = document.createElementNS(SVG, 'svg')
     svg.setAttribute('class', 'cq-rings')
     svg.setAttribute('width', '20')
@@ -105,7 +252,13 @@
     const n = el('span', 'cq-num') // 只显示 5 小时剩余；7 天只用内圈表示
     n.dataset.kind = 'five_hour'
     nums.appendChild(n)
-    meter.append(svg, nums)
+    quota.append(svg, nums)
+    quota.hidden = true
+
+    const stats = el('div', 'cq-stats')
+    stats.append(el('span', 'cq-time'), el('span', 'cq-tok'))
+
+    meter.append(quota, stats)
     meter.addEventListener('mouseenter', openCard)
     meter.addEventListener('mouseleave', closeCard)
     return meter
@@ -119,6 +272,26 @@
       document.body.appendChild(c)
     }
     return c
+  }
+
+  function statsTable() {
+    const today = dayKey()
+    const t = el('div', 'cq-table')
+    const head = el('div', 'cq-tr cq-th')
+    head.append(el('span', null, '今日'), el('span', null, '时长'), el('span', null, 'Token'))
+    t.appendChild(head)
+    const rows = ['claude', 'chatgpt'].map(w => ({ name: SITE_NAME[w], here: w === SITE, ...statsFor(today, w) }))
+    rows.push({ name: '合计', total: true, ms: rows[0].ms + rows[1].ms, tok: rows[0].tok + rows[1].tok })
+    for (const r of rows) {
+      const tr = el('div', `cq-tr${r.total ? ' cq-total' : ''}${r.here ? ' cq-here' : ''}`)
+      tr.append(el('span', null, r.name), el('span', null, fmtTime(r.ms)), el('span', null, fmtTok(r.tok)))
+      t.appendChild(tr)
+    }
+    const a = sumDays('claude', 7), b = sumDays('chatgpt', 7)
+    const week = el('div', 'cq-tr cq-week')
+    week.append(el('span', null, '近 7 天合计'), el('span', null, fmtTime(a.ms + b.ms)), el('span', null, fmtTok(a.tok + b.tok)))
+    t.appendChild(week)
+    return t
   }
 
   function fillCard() {
@@ -138,12 +311,16 @@
       block.append(row, bar)
       c.appendChild(block)
     }
-    const mins = Math.round((Date.now() - fetchedAt) / 60000)
-    c.appendChild(el('div', 'cq-foot', mins < 1 ? '刚刚更新' : `${mins} 分钟前更新`))
+    if (windows().length) {
+      const mins = Math.round((Date.now() - fetchedAt) / 60000)
+      c.appendChild(el('div', 'cq-foot', mins < 1 ? '额度刚刚更新' : `额度 ${mins} 分钟前更新`))
+      c.appendChild(el('div', 'cq-sep'))
+    }
+    c.appendChild(statsTable())
+    c.appendChild(el('div', 'cq-foot', '时长：页面在前台且 3 分钟内有操作才计。Token：按对话文字估算，不含系统提示和每轮重复发送的上下文。'))
   }
 
   function openCard(ev) {
-    if (!usage) return
     fillCard()
     const c = card()
     const r = ev.currentTarget.getBoundingClientRect()
@@ -156,7 +333,9 @@
     document.getElementById('cq-card')?.removeAttribute('data-open')
   }
 
-  // ---------- 摆放 ----------
+  // ======================================================================
+  // 摆放
+  // ======================================================================
   // 头像行里实际内容（名字、套餐、箭头）在屏幕上的右边界
   function contentRight(button) {
     let right = 0
@@ -174,10 +353,10 @@
     return right
   }
 
-  // 「Pro」这类次要文字：百分比沿用它的字号和字体，和这一行融为一体
+  // 「Pro」「Plus」这类次要文字：数字沿用它的字号和字体，和这一行融为一体
   function quietText(button) {
     return [...button.querySelectorAll('span, div, p')]
-      .find(e => e.children.length === 0 && PLAN.test(e.textContent || '')) || null
+      .find(e => e.children.length === 0 && site.plan.test(e.textContent || '')) || null
   }
 
   // 右侧可用到哪里：同一行右边第一个可见元素（如设置图标）的左边，留 8px
@@ -192,11 +371,14 @@
     return limit
   }
 
+  // 空间不够时逐级收起：先收额度百分比，再收用量文字（只剩圆环）
+  const COMPACT = ['', 'nums', 'stats']
+
   // 浮在头像行上、贴着名字右侧；不插进页面布局，所以不会被挤到下一行
   function place() {
     const meter = document.getElementById('cq-meter')
     const button = findAccountButton()
-    if (!meter || !button || !windows().length) return
+    if (!meter || !button) return
     const b = button.getBoundingClientRect()
     if (b.width < 120 || b.height === 0) { meter.hidden = true; return }
     meter.hidden = false
@@ -210,9 +392,15 @@
 
     const x = contentRight(button) + 10
     const limit = rightLimit(button, x)
-    meter.removeAttribute('data-compact')
-    if (x + meter.offsetWidth > limit) meter.setAttribute('data-compact', '')
-    if (x + meter.offsetWidth > limit) { meter.hidden = true; return }
+    const hasRing = !meter.querySelector('.cq-quota').hidden
+    let fit = false
+    for (const level of COMPACT) {
+      if (level === 'stats' && !hasRing) break // 没有圆环时，收起用量就什么都不剩了
+      if (level) meter.dataset.compact = level
+      else delete meter.dataset.compact
+      if (x + meter.offsetWidth <= limit) { fit = true; break }
+    }
+    if (!fit) { meter.hidden = true; return }
 
     meter.style.left = `${Math.round(x)}px`
     meter.style.top = `${Math.round(b.top + b.height / 2 - meter.offsetHeight / 2)}px`
@@ -222,8 +410,6 @@
   const resize = new ResizeObserver(() => place())
 
   function render() {
-    const list = windows()
-    if (list.length === 0) return
     const button = findAccountButton()
     if (!button) return
 
@@ -239,6 +425,8 @@
       observed = button
     }
 
+    const list = windows()
+    meter.querySelector('.cq-quota').hidden = list.length === 0
     for (const [kind, r] of Object.entries(RINGS)) {
       const w = list.find(x => x.kind === kind)
       const pct = w ? left(w.used) : 0
@@ -249,11 +437,21 @@
     const num = meter.querySelector('.cq-num')
     num.hidden = !five
     num.textContent = five ? `${left(five.used)}%` : ''
-    meter.setAttribute('aria-label', list.map(w => `${LABELS[w.kind]}剩 ${left(w.used)}%`).join('，'))
+
+    const mine = statsFor(dayKey(), SITE)
+    meter.querySelector('.cq-time').textContent = fmtTime(mine.ms)
+    meter.querySelector('.cq-tok').textContent = fmtTok(mine.tok)
+
+    const parts = list.map(w => `${LABELS[w.kind]}剩 ${left(w.used)}%`)
+    parts.push(`今日 ${SITE_NAME[SITE]} 使用 ${fmtTime(mine.ms)}，约 ${fmtTok(mine.tok)} token`)
+    meter.setAttribute('aria-label', parts.join('，'))
     place()
     if (document.getElementById('cq-card')?.hasAttribute('data-open')) fillCard()
   }
 
+  // ======================================================================
+  // 事件
+  // ======================================================================
   // React 重绘侧栏、侧栏展开收起时，重新找头像行并对齐
   let scheduled = false
   new MutationObserver(() => {
@@ -266,12 +464,40 @@
     })
   }).observe(document.body, { childList: true, subtree: true })
 
+  const touch = () => { lastInput = Date.now() }
+  for (const t of ['pointerdown', 'keydown', 'wheel', 'mousemove', 'touchstart']) {
+    window.addEventListener(t, touch, { capture: true, passive: true })
+  }
+
   window.addEventListener('resize', place)
   document.addEventListener('scroll', place, true)
   document.addEventListener('transitionend', place, true)
   document.addEventListener('visibilitychange', () => {
-    if (!document.hidden && Date.now() - fetchedAt > 30000) refresh()
+    if (document.hidden) { flush(); return }
+    lastTick = Date.now()
+    if (Date.now() - fetchedAt > 30000) refreshQuota()
+    loadStored().then(render)
   })
-  setInterval(() => { if (!document.hidden) refresh() }, REFRESH_MS)
-  refresh()
+  window.addEventListener('pagehide', flush)
+  window.addEventListener('focus', () => { lastTick = Date.now() })
+
+  try {
+    chrome.storage.onChanged.addListener((changes, area) => {
+      if (area !== 'local') return
+      let hit = false
+      for (const [k, { newValue }] of Object.entries(changes)) {
+        if (!k.startsWith('u:')) continue
+        stored[k.slice(2)] = newValue
+        hit = true
+      }
+      if (hit) render()
+    })
+  } catch { /* 非扩展环境 */ }
+
+  setInterval(tick, TICK_MS)
+  setInterval(flush, FLUSH_MS)
+  setInterval(() => { if (!document.hidden) render() }, 30000) // 让分钟数走起来
+  setInterval(() => { if (!document.hidden) refreshQuota() }, QUOTA_MS)
+  loadStored().then(render)
+  refreshQuota()
 })()

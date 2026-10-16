@@ -16,6 +16,14 @@ Show your remaining Claude usage (5-hour and 7-day windows) right in the Claude 
 - 颜色和字体沿用 claude.ai 自己的 CSS 变量，跟随浅色和深色主题；空间不够时只保留圆环。
 - 只请求 claude.ai 自己的 `/api/organizations` 和 `/api/organizations/<id>/usage`，每 2 分钟刷新一次。不收集、不上传任何数据。
 
+### AI 用量统计（v0.6.0 起）
+
+- 圆环右侧用两行小字显示**今天在当前网站的使用时长和 token**：在 claude.ai 显示 Claude 的，在 chatgpt.com 显示 ChatGPT 的。
+- 悬停卡片里有 Claude、ChatGPT 各自的今日时长 / token、两者**合计**，以及近 7 天合计。
+- 时长：页面在前台、窗口有焦点，并且 3 分钟内有操作（或正在生成回复）才计时。
+- Token：只统计在页面上实时发出和生成的消息（打开历史对话不会重复计），按文字估算：中日韩字符约 1 字 1 token，其他约 4 字符 1 token。**这是估算**，不含系统提示、联网/文件内容和每轮重复发送的上下文，比官方计费的 token 少。
+- 数据只存在本机的扩展存储里（`chrome.storage.local`，保留 90 天），不上传。
+
 安装：
 1. 下载本仓库（Code → Download ZIP 并解压，或 `git clone`）
 2. 打开 `chrome://extensions`，开启「开发者模式」
@@ -43,7 +51,8 @@ claude plugin install quota-band --marketplace wzp42406-eng/claude-quota-ring
 ## 限制
 
 - Claude 桌面 App 的聊天界面不支持浏览器扩展，扩展只在浏览器里的 claude.ai 生效。
-- 扩展依赖 claude.ai 的内部接口和页面结构，官方改版后可能失效，欢迎提 issue。
+- 扩展依赖 claude.ai / chatgpt.com 的内部接口和页面结构，官方改版后可能失效，欢迎提 issue。
+- 用量统计只覆盖浏览器里的网页版；桌面 App、手机 App 和 Claude Code 里的使用不计入。
 - 额度只对订阅账号（Pro / Max / Team）有意义；API Key 用户看不到圆环。
 
 ## 许可证
