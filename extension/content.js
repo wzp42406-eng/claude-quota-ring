@@ -58,6 +58,8 @@
       usage = await getJson(`/api/organizations/${orgId}/usage`)
       fetchedAt = Date.now()
       render()
+      const limits = windows().map(w => ({ kind: w.kind, percentUsed: w.used, resetsAt: w.resetsAt }))
+      if (limits.length && alive()) chrome.runtime.sendMessage({ type: 'quota', limits }).catch(() => {})
     } catch {
       /* 未登录或接口变化：静默，下次再试 */
     }

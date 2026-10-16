@@ -71,3 +71,41 @@ test('band shows rings and only the 5-hour percentage', async ($, on) => {
     expect(await ui.find({ type: surface === 'terminal' ? 'Raster' : 'Svg' })).toBeDefined()
   }
 })
+
+test('band adds today\'s Claude Code time and tokens from the local usage API', async ($, on) => {
+  on('ui.render', ($, e) => {
+    const { Box } = $.ui.resolve(e)
+    return h(Box, { key: 'engine' }) as RenderElement
+  })
+  on('session.measure', (_$, e) => ({ changed: e.changed }))
+  mock.clock(on, { now: Date.parse('2026-10-16T00:00:00Z') })
+  mock.env(on, { HOME: '/Users/test' })
+  const calls: string[] = []
+  on('fs.read', (_$, e) => {
+    expect(e.path).toBe('/Users/test/Library/Application Support/ai-usage/config.json')
+    return { value: JSON.stringify({ key: 'aiu_test' }) }
+  })
+  on('http.fetch', (_$, e) => {
+    calls.push(`${e.init?.method ?? 'GET'} ${e.url} ${e.init?.headers?.Authorization}`)
+    const text = e.url.endsWith('/api/usage')
+      ? JSON.stringify({ periods: { day: { claude_code: { minutes: 153.4, tokens: 1_020_000 } } } })
+      : '{"ok":true}'
+    return { value: { status: 200, ok: true, headers: {}, text } }
+  })
+
+  await $.session.measure({
+    context: { window: 200000 },
+    rateLimits: [{ kind: 'five_hour', percentUsed: 40 }, { kind: 'seven_day', percentUsed: 12 }],
+    changed: ['rateLimits'],
+  })
+
+  expect(calls).toEqual([
+    'POST http://127.0.0.1:8787/api/quota Bearer aiu_test',
+    'GET http://127.0.0.1:8787/api/usage Bearer aiu_test',
+  ])
+  for (const surface of ['terminal', 'desktop'] as const) {
+    const ui = await $.ui.mount({ plugin: 'quota-band', surface, ...BAND })
+    expect(await ui.find({ type: 'Text', text: /^60%$/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /今日 2h33m · 1\.0M tokens/ })).toBeDefined()
+  }
+})

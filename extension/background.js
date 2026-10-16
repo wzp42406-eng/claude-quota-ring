@@ -40,7 +40,22 @@ async function sync() {
   }
 }
 
+// claude.ai 的 5 小时 / 7 天额度：直接报给本机 API
+async function sendQuota(limits) {
+  try {
+    await fetch(API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ days: {}, quota: limits }),
+    })
+  } catch { /* 本机 API 没开 */ }
+}
+
 chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
+  if (msg && msg.type === 'quota' && Array.isArray(msg.limits)) {
+    sendQuota(msg.limits).then(() => reply(true))
+    return true
+  }
   if (msg && msg.type === 'usage' && (msg.site === 'claude' || msg.site === 'chatgpt')) {
     add(msg).then(() => { scheduleSync(); reply(true) })
     return true

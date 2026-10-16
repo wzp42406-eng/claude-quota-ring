@@ -27,7 +27,22 @@ Show your remaining Claude usage (5-hour and 7-day windows) right in the Claude 
 
 ### 本机用量 API（给个人工作台用）
 
-[`usage-api/`](usage-api) 是一个只监听 `127.0.0.1:8787` 的小服务（只用 Python 标准库）。扩展会把用量同步过去；没装这个服务时扩展照常工作。
+[`usage-api/`](usage-api) 是一个只监听 `127.0.0.1:8787` 的小服务（只用 Python 标准库），汇总四个来源：
+
+| 来源 | 字段名 | 数据从哪来 | token |
+| --- | --- | --- | --- |
+| claude.ai 网页 | `claude` | 浏览器扩展 | 估算 |
+| chatgpt.com 网页 | `chatgpt` | 浏览器扩展 | 估算 |
+| Claude Code（终端和桌面 App 的 Code 页） | `claude_code` | `~/.claude/projects/` 里的会话记录 | 实际值 |
+| Codex（CLI 和桌面） | `codex` | `~/.codex/sessions/` 里的会话记录 | 实际值 |
+
+额度：Claude 的 5 小时 / 7 天额度由 Claude Code 插件和浏览器扩展报上来；Codex 的额度从它的会话记录里读。没装这个服务时，扩展和插件照常工作。
+
+终端里看一眼全部用量：
+
+```bash
+python3 usage-api/server.py --summary
+```
 
 安装成开机自动运行，并显示你的专属密钥：
 
@@ -41,7 +56,7 @@ bash usage-api/install.sh
 
 | 接口 | 返回 |
 | --- | --- |
-| `GET /api/usage` | `periods.day / week / month / year / all`，每项含 `claude`、`chatgpt`、`total` 的 `minutes` 和 `tokens` |
+| `GET /api/usage` | `periods.day / week / month / year / all`，每项含 `claude`、`chatgpt`、`claude_code`、`codex`、`web_total`、`cli_total`、`total` 的 `minutes`、`tokens`（终端来源另有 `cache_read_tokens`）；`quota.claude / quota.codex` 的 `five_hour`、`seven_day` 剩余百分比与重置时间 |
 | `GET /api/usage/daily?from=2026-10-01&to=2026-10-31` | 按天明细 |
 | `GET /health` | 不需要密钥，检查服务是否在运行 |
 
@@ -56,12 +71,15 @@ console.log(periods.month.total.minutes, periods.month.total.tokens)
 ```
 
 - 数据文件在 `~/Library/Application Support/ai-usage/usage.json`。
-- 只有浏览器扩展能写入；同步时按天取较大值，所以重装扩展、清空扩展存储也不会冲掉已有记录。
+- 写入只接受浏览器扩展和带密钥的本机程序；网页用量同步时按天取较大值，所以重装扩展、清空扩展存储也不会冲掉已有记录。
+- 终端 token 的算法：未命中缓存的输入 + 写缓存 + 输出；命中缓存的输入单独记为 `cache_read_tokens`（数量很大但便宜）。时长：同一会话里相邻两条记录间隔不超过 5 分钟的部分相加。
 - 只能在这台 Mac 上访问。在线网页（https）也能读，Chrome 会自动做本机访问的预检。
 
 ## Claude Code 插件（quota-band）
 
 和网页扩展同一种表现：同心圆外圈是 5 小时额度（灰）、内圈是 7 天额度（红），弧长代表剩余量，旁边只显示 5 小时剩余百分比。桌面 App 的 Code 页用矢量圆环；终端用盲文点阵画圆环（占 3 行，空间不够时退化为 `◔ 62%`）。数据来自 Claude Code 自己记录的额度窗口，每次回复后更新。
+
+装了本机用量 API（见上）后，同一行右侧还会显示今天 Claude Code 的使用时长和 token，如 `62%  │  今日 2h33m · 1.0M tokens`（实际值，每次回复后刷新）；插件也会把额度报给 API，工作台就能读到。
 
 在 Claude Code 终端里：
 

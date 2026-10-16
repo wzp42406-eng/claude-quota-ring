@@ -1,10 +1,15 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { Limit } from '../types'
+import type { Limit, Today } from '../types'
 
 // 与网页扩展一致：同心圆，外圈 5 小时（灰）、内圈 7 天（红），弧长 = 剩余量；文字只显示 5 小时剩余百分比
+// 右侧再显示今天 Claude Code 的使用时长和 token（来自本机用量 API，读的是会话记录里的实际值）
 const limits = atom({ plugin: 'quota-band', key: 'limits' } as const, [] as Limit[])
+const today = atom({ plugin: 'quota-band', key: 'today' } as const, null as Today | null)
+
+const API = 'http://127.0.0.1:8787'
+const REFETCH_MS = 20_000
 
 const GRAY = 0x8f8a80
 const RED = 0xd7493c
@@ -88,33 +93,88 @@ async function store($: EngineInterface, list: readonly Limit[]) {
   await update($, limits, () => list.map(l => ({ ...l })))
 }
 
+export const fmtTime = (minutes: number) => {
+  const m = Math.floor(minutes)
+  return m < 60 ? `${m}m` : `${Math.floor(m / 60)}h${String(m % 60).padStart(2, '0')}m`
+}
+
+export const fmtTok = (n: number) =>
+  n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1000 ? `${(n / 1000).toFixed(n < 1e4 ? 1 : 0)}k` : String(n)
+
+// ---------- 本机用量 API（usage-api/server.py）：没装就什么都不做 ----------
+let apiKey: string | undefined
+let fetchedAt = 0
+
+async function key($: EngineInterface) {
+  if (apiKey) return apiKey
+  const home = await $.env.get('HOME')
+  if (!home) return undefined
+  try {
+    apiKey = JSON.parse(await $.fs.read(`${home}/Library/Application Support/ai-usage/config.json`) as string).key
+  } catch {
+    /* 没装用量 API */
+  }
+  return apiKey
+}
+
+// 把额度报给 API（工作台能看到），再取回今天 Claude Code 的时长和 token
+async function syncApi($: EngineInterface, list: readonly Limit[]) {
+  const k = await key($)
+  if (!k) return
+  const headers = { Authorization: `Bearer ${k}`, 'Content-Type': 'application/json' }
+  try {
+    if (list.length) {
+      await $.http.fetch(`${API}/api/quota`, {
+        method: 'POST', headers, body: JSON.stringify({ source: 'claude', limits: list }),
+      })
+    }
+    const now = await $.clock.now()
+    if (now - fetchedAt < REFETCH_MS) return
+    fetchedAt = now
+    const r = await $.http.fetch(`${API}/api/usage`, { headers })
+    if (!r.ok) return
+    const day = JSON.parse(r.text)?.periods?.day?.claude_code
+    if (day) await update($, today, () => ({ minutes: day.minutes, tokens: day.tokens }))
+  } catch {
+    /* API 没开或返回不是 JSON */
+  }
+}
+
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     const result = await next(e)
-    await store($, (await $.session.usage()).rateLimits)
+    const list = (await $.session.usage()).rateLimits
+    await store($, list)
+    await syncApi($, list)
     return result
   })
 
+  // 每次回复后都会量一次：顺便刷新今天的用量
   on('session.measure', async ($, e, next) => {
     await store($, e.rateLimits)
+    await syncApi($, e.changed.includes('rateLimits') ? e.rateLimits : [])
     return next(e)
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     const { five, seven } = pick(await read($, limits))
-    if (e.props.hasSurvey || !five) return next(e)
+    const used = await read($, today)
+    if (e.props.hasSurvey || (!five && !used)) return next(e)
 
     const left5 = remaining(five)
     const left7 = remaining(seven)
-    const label = `${left5}%`
-    const alt = `5 小时额度剩 ${left5}%${seven ? `，7 天额度剩 ${left7}%` : ''}`
+    const label = five ? `${left5}%` : ''
+    const usage = used ? `今日 ${fmtTime(used.minutes)} · ${fmtTok(used.tokens)} tokens` : ''
+    const alt = [five && `5 小时额度剩 ${left5}%`, seven && `7 天额度剩 ${left7}%`, used && `今日 Claude Code 使用 ${usage.slice(3)}`]
+      .filter(Boolean).join('，')
 
     if (e.surface === 'terminal') {
       const { Box, Text, Raster } = $.ui.resolve(e)
-      if (e.props.maxRows < RASTER.rows) {
+      if (!five || e.props.maxRows < RASTER.rows) {
         return (
-          <Box>
-            <Text color="gray">◔ {label}</Text>
+          <Box flexDirection="row" gap={2}>
+            {five ? <Text color="gray">◔ {label}</Text> : null}
+            {usage ? <Text dimColor>{usage}</Text> : null}
           </Box>
         )
       }
@@ -122,6 +182,7 @@ export const register: Register = on => {
         <Box flexDirection="row" alignItems="center" gap={1}>
           <Raster key="rings" columns={RASTER.columns} rows={RASTER.rows} cells={ringsCells(left5, left7)} />
           <Text color="gray">{label}</Text>
+          {usage ? <Text dimColor>  │  {usage}</Text> : null}
         </Box>
       )
     }
@@ -130,8 +191,9 @@ export const register: Register = on => {
       const { Box, Text, Svg } = $.ui.resolve(e)
       return (
         <Box flexDirection="row" alignItems="center" gap={1}>
-          <Svg key="rings" source={ringsSvg(left5, left7)} alt={alt} width={20} height={20} />
-          <Text dimColor>{label}</Text>
+          {five ? <Svg key="rings" source={ringsSvg(left5, left7)} alt={alt} width={20} height={20} /> : null}
+          {five ? <Text dimColor>{label}</Text> : null}
+          {usage ? <Text dimColor>{five ? '  ·  ' : ''}{usage}</Text> : null}
         </Box>
       )
     }
