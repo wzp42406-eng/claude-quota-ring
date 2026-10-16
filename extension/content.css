@@ -1,27 +1,32 @@
 /* 跟随 claude.ai 自身的设计变量；变量缺失时用接近的默认值 */
 :root {
-  --cq-gray: hsl(var(--text-300, 50 2.3% 45%));
-  --cq-red: hsl(5 68% 54%);
-  --cq-hair: hsl(var(--border-300, 30 3.3% 11.8%) / 0.12);
+  --cq-gray: hsl(var(--text-400, 51 3.1% 43.7%));
+  --cq-red: hsl(5 66% 54%);
+  --cq-hair: hsl(var(--border-300, 30 3.3% 11.8%) / 0.13);
 }
 
+/* 浮在头像行上，位置由脚本对齐到名字右侧 */
 #cq-meter {
-  flex: 0 0 auto;
-  margin: 0 2px 0 auto;
-  padding: 3px 8px 3px 4px;
+  position: fixed;
+  z-index: 40;
   display: flex;
   align-items: center;
-  gap: 7px;
-  border-radius: 8px;
+  gap: 5px;
+  padding: 2px 5px 2px 2px;
+  border-radius: 999px;
+  font-size: 12px;
+  line-height: 1;
   cursor: default;
-  font: inherit;
-  transition: background-color 160ms ease;
+  transition: background-color 160ms ease, opacity 200ms ease;
+  animation: cq-in 260ms ease both;
 }
-#cq-meter:hover { background: hsl(var(--bg-300, 48 7% 90%) / 0.5); }
+#cq-meter[hidden] { display: none; }
+#cq-meter:hover { background: hsl(var(--bg-300, 48 7% 90%) / 0.6); }
+@keyframes cq-in { from { opacity: 0; } to { opacity: 1; } }
 
-#cq-meter .cq-rings { display: block; transform: rotate(-90deg); overflow: visible; }
+#cq-meter .cq-rings { display: block; transform: rotate(-90deg); flex-shrink: 0; }
 #cq-meter .cq-track,
-#cq-meter .cq-arc { fill: none; stroke-width: 2.25; }
+#cq-meter .cq-arc { fill: none; stroke-width: 2; }
 #cq-meter .cq-track { stroke: var(--cq-hair); }
 #cq-meter .cq-arc {
   stroke-linecap: round;
@@ -32,22 +37,20 @@
 
 #cq-meter .cq-nums {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
-  font-size: 10px;
-  line-height: 1;
-  letter-spacing: 0.02em;
+  align-items: baseline;
+  gap: 4px;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 #cq-meter .cq-num[data-kind="five_hour"] { color: var(--cq-gray); }
 #cq-meter .cq-num[data-kind="seven_day"] { color: var(--cq-red); }
 #cq-meter .cq-num[hidden] { display: none; }
 
-/* 侧栏太窄时只留圆环 */
+/* 空间不够时只留圆环 */
 #cq-meter[data-compact] .cq-nums { display: none; }
 
 @media (prefers-reduced-motion: reduce) {
-  #cq-meter .cq-arc { transition: none; }
+  #cq-meter, #cq-meter .cq-arc { transition: none; animation: none; }
 }
 
 #cq-card {
@@ -69,7 +72,7 @@
 }
 #cq-card[data-open] { opacity: 1; transform: none; }
 #cq-card .cq-row { display: flex; justify-content: space-between; gap: 16px; }
-#cq-card .cq-row + .cq-row { margin-top: 8px; }
+#cq-card .cq-block + .cq-block { margin-top: 10px; }
 #cq-card .cq-label { color: hsl(var(--text-200, 50 2.3% 34%)); }
 #cq-card .cq-value { font-variant-numeric: tabular-nums; }
 #cq-card .cq-sub { color: hsl(var(--text-400, 48 4.8% 59.2%)); font-size: 11.5px; }
