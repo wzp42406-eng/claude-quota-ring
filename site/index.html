@@ -11,7 +11,7 @@
   --bg: #f6f5f1; --panel: #fffffe; --ink: #1b1a17; --ink-2: #57554f; --ink-3: #8e8b83;
   --line: #e7e4dc; --line-2: #efede7; --accent: #b5562f; --hover: #f1efe9;
   --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100;
-  --web: #1b9a70; --cli: #327dcc; --desktop: #b36a20; --ring-5h: #8f8a80;
+  --cli: #2a78d6; --desktop: #eb6834; --web: #1baf7a; --ring-5h: #8f8a80; --trend: #3d3b36;
   --good: #1f7a4d; --warn: #b26b00; --bad: #c0392b;
   --shadow: 0 1px 2px rgb(40 30 10 / 4%), 0 8px 24px rgb(40 30 10 / 5%);
 }
@@ -21,7 +21,7 @@
     --bg: #131312; --panel: #1b1b19; --ink: #efede8; --ink-2: #b9b6ad; --ink-3: #85827a;
     --line: #2c2b28; --line-2: #242321; --accent: #e07a4f; --hover: #23221f;
     --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
-    --web: #35b98a; --cli: #5b9be5; --desktop: #dc9148; --ring-5h: #aaa59b;
+    --cli: #3987e5; --desktop: #d95926; --web: #199e70; --ring-5h: #aaa59b; --trend: #d8d5cc;
     --good: #4cbb84; --warn: #e0a33a; --bad: #e66767; --shadow: none;
   }
 }
@@ -30,7 +30,7 @@
   --bg: #131312; --panel: #1b1b19; --ink: #efede8; --ink-2: #b9b6ad; --ink-3: #85827a;
   --line: #2c2b28; --line-2: #242321; --accent: #e07a4f; --hover: #23221f;
   --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
-  --web: #35b98a; --cli: #5b9be5; --desktop: #dc9148; --ring-5h: #aaa59b;
+  --cli: #3987e5; --desktop: #d95926; --web: #199e70; --ring-5h: #aaa59b; --trend: #d8d5cc;
   --good: #4cbb84; --warn: #e0a33a; --bad: #e66767; --shadow: none;
 }
 * { box-sizing: border-box; }
@@ -61,63 +61,77 @@ header.top .meta { color: var(--ink-3); font-size: 13px; display: flex; gap: 14p
 .seg button[aria-pressed="true"] { background: var(--panel); color: var(--ink); box-shadow: 0 1px 2px rgb(0 0 0 / 8%); }
 
 /* AI 用量 */
-.ai-head { align-items: flex-start; }
-.update { text-align: right; color: var(--ink-3); font-size: 12px; line-height: 1.45; }
+.usage .panel-head { margin-bottom: 20px; }
+.head-right { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; justify-content: flex-end; }
+.update { color: var(--ink-3); font-size: 12px; white-space: nowrap; }
 .update.stale { color: var(--warn); }
-.update b { display: block; color: inherit; font-weight: 600; }
-.overview { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-.metric-card, .quota-card, .source-card { border: 1px solid var(--line-2); border-radius: 14px; min-width: 0; }
-.metric-card { padding: 16px 18px; }
-.metric-card .k { color: var(--ink-3); font-size: 12px; }
-.metric-card .v { font-size: 30px; font-weight: 600; line-height: 1.15; margin-top: 4px; }
-.metric-card .v small { font-size: 14px; font-weight: 500; color: var(--ink-2); margin-left: 1px; }
-.metric-card .d { color: var(--ink-3); font-size: 12px; margin-top: 3px; }
-.quota-card { padding: 14px 16px; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; }
-.quota-card h3 { margin: 0; font-size: 13px; font-weight: 600; }
-.quota-card .qmeta { color: var(--ink-3); font-size: 11.5px; margin-top: 3px; }
-.ring-value { display: flex; align-items: center; gap: 10px; }
-.rings { display: block; width: 50px; height: 50px; flex: none; }
-.rings circle { fill: none; transform: rotate(-90deg); transform-origin: 25px 25px; stroke-linecap: round; }
-.rings .track { stroke: var(--line-2); }
-.rings .five { stroke: var(--ring-5h); }
-.ring-value b { font-size: 22px; font-weight: 600; }
-.ring-value small { display: block; color: var(--ink-3); font-size: 10.5px; font-weight: 400; white-space: nowrap; }
-.source-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
-.source-card { padding: 16px 18px; }
-.source-card > header { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
-.source-card h3 { margin: 0; font-size: 14px; font-weight: 600; }
-.source-card header span { color: var(--ink-3); font-size: 11.5px; }
-.source-list { display: grid; }
-.source-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line-2); }
-.source-name { min-width: 0; }
-.source-name b { display: block; font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tag { display: inline-block; margin-top: 2px; font-size: 10.5px; color: var(--ink-3); border: 1px solid var(--line); border-radius: 5px; padding: 0 5px; line-height: 16px; white-space: nowrap; }
-.source-stat { text-align: right; }
-.source-stat span { display: block; color: var(--ink-3); font-size: 10.5px; }
-.source-stat b { font-size: 14px; font-weight: 600; }
-.cache { color: var(--ink-3); font-size: 11.5px; margin-top: 3px; }
-.source-note { color: var(--ink-3); font-size: 11.5px; border-top: 1px solid var(--line-2); padding-top: 9px; margin-top: 2px; }
-.legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--ink-2); }
+
+.hero { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; border-top: 1px solid var(--line-2); border-bottom: 1px solid var(--line-2); }
+.hero > div { padding: 18px 0 18px 22px; min-width: 0; }
+.hero > div:first-child { padding-left: 0; }
+.hero > div + div { border-left: 1px solid var(--line-2); }
+.hero .k { color: var(--ink-3); font-size: 12px; letter-spacing: 0.04em; }
+.hero .v { font-size: 34px; font-weight: 600; line-height: 1.1; margin-top: 6px; letter-spacing: -0.02em; }
+.hero .v small { font-size: 15px; font-weight: 500; color: var(--ink-2); margin-left: 1px; }
+.quota { display: flex; align-items: center; gap: 14px; }
+.quota svg { width: 46px; height: 46px; flex: none; transform: rotate(-90deg); }
+.quota circle { fill: none; stroke-width: 4; stroke-linecap: round; }
+.quota .track { stroke: var(--line-2); }
+.quota .arc { stroke: var(--ring-5h); transition: stroke-dashoffset 700ms ease; }
+.quota .arc.warn { stroke: var(--warn); }
+.quota .arc.bad { stroke: var(--bad); }
+.quota .v { margin-top: 0; font-size: 26px; }
+.quota .k { margin-bottom: 2px; }
+
+.ends { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 28px; padding: 22px 0 6px; }
+.end { min-width: 0; }
+.end-head { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; }
+.end-head i { width: 8px; height: 8px; border-radius: 2px; flex: none; }
+.end-head span { margin-left: auto; color: var(--ink-3); font-weight: 400; font-size: 11.5px; }
+.end-main { display: flex; align-items: baseline; gap: 10px; margin-top: 8px; }
+.end-main b { font-size: 22px; font-weight: 600; letter-spacing: -0.01em; }
+.end-main em { font-style: normal; color: var(--ink-2); font-size: 13px; }
+.share { height: 3px; border-radius: 2px; background: var(--line-2); margin: 10px 0 9px; overflow: hidden; }
+.share i { display: block; height: 100%; border-radius: 2px; transition: width 600ms ease; }
+.end-sub { display: grid; gap: 3px; color: var(--ink-3); font-size: 12px; }
+.end-sub div { display: flex; justify-content: space-between; gap: 8px; }
+.end-sub div span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.chart-head { display: flex; align-items: center; gap: 16px; margin: 24px 0 6px; flex-wrap: wrap; }
+.chart-head h3 { margin: 0 auto 0 0; font-size: 13px; font-weight: 600; }
+.legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--ink-2); align-items: center; }
 .legend span { display: inline-flex; align-items: center; gap: 5px; }
 .legend i { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
-.chart { position: relative; margin-top: 10px; }
-.chart svg { display: block; width: 100%; height: 150px; overflow: visible; }
+.legend i.line { width: 14px; height: 2px; border-radius: 1px; background: var(--trend); }
+.seg.small button { padding: 3px 10px; font-size: 12px; }
+.chart { position: relative; }
+.chart svg { display: block; width: 100%; height: 210px; overflow: visible; }
 .chart .axis { fill: var(--ink-3); font-size: 10.5px; }
 .chart .grid-line { stroke: var(--line-2); stroke-width: 1; }
-.tip { position: absolute; pointer-events: none; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; font-size: 12px; box-shadow: 0 6px 20px rgb(0 0 0 / 10%); min-width: 170px; opacity: 0; transition: opacity 120ms; z-index: 5; }
+.chart .trend { fill: none; stroke: var(--trend); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.chart .cursor { stroke: var(--ink-3); stroke-width: 1; stroke-dasharray: 2 3; }
+.tip { position: absolute; pointer-events: none; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 9px 11px; font-size: 12px; box-shadow: 0 8px 24px rgb(0 0 0 / 10%); min-width: 180px; opacity: 0; transition: opacity 120ms; z-index: 5; }
 .tip.on { opacity: 1; }
-.tip .tt { color: var(--ink-3); margin-bottom: 4px; }
-.tip .tr { display: grid; grid-template-columns: 10px 1fr auto; gap: 6px; align-items: center; }
+.tip .tt { color: var(--ink-3); margin-bottom: 5px; }
+.tip .tr { display: grid; grid-template-columns: 14px 1fr auto; gap: 6px; align-items: center; line-height: 1.6; }
 .tip .tr i { width: 8px; height: 8px; border-radius: 2px; }
-details.data { margin-top: 10px; font-size: 12px; color: var(--ink-3); }
+.tip .tr i.line { width: 12px; height: 2px; background: var(--trend); }
+.tip .tr.sum { border-top: 1px solid var(--line-2); margin-top: 3px; padding-top: 3px; font-weight: 600; }
+details.data { margin-top: 8px; font-size: 12px; color: var(--ink-3); }
 details.data summary { cursor: pointer; width: max-content; }
-details.data .scroll { overflow: hidden; }
-details.data table { width: 100%; table-layout: fixed; border-collapse: collapse; margin-top: 8px; color: var(--ink-2); }
-details.data th, details.data td { text-align: right; padding: 3px 6px; border-bottom: 1px solid var(--line-2); font-weight: 400; }
+details.data .scroll { max-height: 260px; overflow: auto; }
+details.data table { width: 100%; border-collapse: collapse; margin-top: 8px; color: var(--ink-2); }
+details.data th, details.data td { text-align: right; padding: 3px 6px; border-bottom: 1px solid var(--line-2); font-weight: 400; white-space: nowrap; }
 details.data th:first-child, details.data td:first-child { text-align: left; }
-.data-cell span, .data-cell small { display: block; }
-.data-cell small { color: var(--ink-3); font-size: 10px; }
-.foot { margin-top: 18px; color: var(--ink-3); font-size: 11.5px; line-height: 1.6; }
+.foot { margin-top: 14px; color: var(--ink-3); font-size: 11.5px; line-height: 1.6; }
+
+/* 英语区：宽屏左跟读、右生词 */
+.en-grid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 28px; align-items: start; }
+.en-side > .section-title:first-child { margin-top: 0; }
+@media (max-width: 980px) {
+  .en-grid { grid-template-columns: 1fr; gap: 0; }
+  .en-side > .section-title:first-child { margin-top: 22px; }
+}
 
 /* 英语：跟读 */
 .chips { display: flex; gap: 16px; color: var(--ink-2); font-size: 12.5px; flex-wrap: wrap; }
@@ -199,12 +213,17 @@ form.add .ex { grid-column: 1 / 3; }
   .panel-head { align-items: flex-start; }
   .seg { overflow: visible; width: 100%; }
   .seg button { flex: 1; padding: 5px 3px; font-size: 12px; }
-  .overview, .source-grid { grid-template-columns: minmax(0, 1fr); }
-  .metric-card .v { font-size: 26px; }
-  .source-card { padding: 14px; }
-  .source-row { gap: 8px; }
-  .chart svg { height: 138px; }
-  details.data th, details.data td { padding: 4px 2px; font-size: 10.5px; overflow-wrap: anywhere; }
+  .hero { grid-template-columns: 1fr 1fr; }
+  .hero > div { padding: 14px 0 14px 14px; }
+  .hero > div:nth-child(odd) { padding-left: 0; border-left: 0; }
+  .hero > div:nth-child(n+3) { border-top: 1px solid var(--line-2); }
+  .hero .v { font-size: 26px; }
+  .quota { gap: 10px; }
+  .quota svg { width: 36px; height: 36px; }
+  .quota .v { font-size: 22px; }
+  .ends { grid-template-columns: 1fr; gap: 18px; }
+  .chart svg { height: 170px; }
+  .head-right { width: 100%; justify-content: space-between; }
   .sentence { font-size: 20px; }
   .controls { grid-template-columns: 1fr 1fr; }
   .controls .btn.primary { grid-column: 1 / -1; }
@@ -226,44 +245,32 @@ form.add .ex { grid-column: 1 / 3; }
 
   <div class="grid">
     <!-- ==================== AI 用量 ==================== -->
-    <section class="panel" aria-labelledby="ai-h">
-      <div class="panel-head ai-head">
-        <div><h2 id="ai-h">AI 用量</h2><div class="sub">网页、终端与桌面统一汇总</div></div>
-        <div class="update" id="update-status">正在读取数据…</div>
+    <section class="panel usage" aria-labelledby="ai-h">
+      <div class="panel-head">
+        <h2 id="ai-h">AI 用量</h2>
+        <div class="head-right">
+          <span class="update" id="update-status">正在读取…</span>
+          <div class="seg" id="period" role="group" aria-label="统计区间"></div>
+        </div>
       </div>
 
-      <div class="section-title"><span>今日总览</span></div>
-      <div class="overview" id="overview">
-        <div class="metric-card"><div class="k">今日总时长</div><div class="v num" id="h-time">—</div><div class="d" id="h-time-d">&nbsp;</div></div>
-        <div class="metric-card"><div class="k">今日总 Token</div><div class="v num" id="h-tok">—</div><div class="d" id="h-tok-d">&nbsp;</div></div>
-        <div class="quota-card" id="quota-claude"></div>
-        <div class="quota-card" id="quota-codex"></div>
+      <div class="hero">
+        <div><div class="k" id="k-time">使用时长</div><div class="v num" id="h-time">—</div></div>
+        <div><div class="k" id="k-tok">Token</div><div class="v num" id="h-tok">—</div></div>
+        <div class="quota" id="q-claude"></div>
+        <div class="quota" id="q-codex"></div>
       </div>
 
-      <div class="section-title"><span>分端明细</span></div>
-      <div class="seg" id="period" role="group" aria-label="统计区间"></div>
-      <div class="source-grid">
-        <section class="source-card" id="web-section" aria-labelledby="web-h">
-          <header><h3 id="web-h">网页端</h3><span id="web-period"></span></header>
-          <div class="source-list" id="web-rows"></div>
-          <div class="source-note">网页 Token 根据浏览器活动估算。</div>
-        </section>
-        <section class="source-card" id="cli-section" aria-labelledby="cli-h">
-          <header><h3 id="cli-h">终端 CLI</h3><span id="cli-period"></span></header>
-          <div class="source-list" id="cli-rows"></div>
-          <div class="source-note">终端 Token 来自会话记录，精确统计；缓存读取另计。</div>
-        </section>
-        <section class="source-card" id="desktop-section" aria-labelledby="desktop-h">
-          <header><h3 id="desktop-h">桌面软件</h3><span id="desktop-period"></span></header>
-          <div class="source-list" id="desktop-rows"></div>
-          <div class="source-note">Claude / ChatGPT 普通对话无 Token 记录；可识别的 Code 会话独立统计，不计入终端 CLI。</div>
-        </section>
-      </div>
+      <div class="ends" id="ends"></div>
 
-      <div class="section-title"><span>近 14 天使用时长</span><div class="legend" id="legend"></div></div>
-      <div class="chart" id="chart"><svg id="svg" role="img" aria-label="近 14 天网页端、终端 CLI 与桌面软件使用时长"></svg><div class="tip" id="tip"></div></div>
-      <details class="data"><summary>查看数据</summary><div class="scroll"><table id="table"></table></div></details>
-      <div class="foot" id="foot">正在读取数据…</div>
+      <div class="chart-head">
+        <h3>每日用量 · 近 30 天</h3>
+        <div class="legend" id="legend"></div>
+        <div class="seg small" id="metric" role="group" aria-label="指标"></div>
+      </div>
+      <div class="chart" id="chart"><svg id="svg" role="img" aria-label="近 30 天每日用量，按网页、终端、桌面堆叠，附 7 日均线"></svg><div class="tip" id="tip"></div></div>
+      <details class="data"><summary>查看每日数据</summary><div class="scroll"><table id="table"></table></div></details>
+      <div class="foot" id="foot"></div>
     </section>
 
     <!-- ==================== 英语 ==================== -->
@@ -272,6 +279,7 @@ form.add .ex { grid-column: 1 / 3; }
         <h2 id="en-h">英语<span>跟读</span></h2>
         <div class="chips" id="chips"></div>
       </div>
+      <div class="en-grid"><div class="en-main">
       <div class="progress"><i id="prog" style="width:0"></i></div>
       <div class="seg topics" id="topics" role="group" aria-label="材料"></div>
 
@@ -307,6 +315,7 @@ form.add .ex { grid-column: 1 / 3; }
         </form>
       </details>
 
+      </div><div class="en-side">
       <div class="section-title"><span>生词 · 辅助</span><span id="vocab-count"></span></div>
       <div id="vocab"></div>
       <details class="more"><summary>添加生词 / 词库</summary>
@@ -319,6 +328,7 @@ form.add .ex { grid-column: 1 / 3; }
         </form>
         <div class="deck-list" id="deck-list"></div>
       </details>
+      </div></div>
     </section>
   </div>
 </div>
@@ -367,164 +377,188 @@ form.add .ex { grid-column: 1 / 3; }
   $('today').textContent = new Date().toLocaleDateString('zh-CN', { month: 'long', day: 'numeric', weekday: 'short' })
 
   // ================= AI 用量 =================
-  const WEB_SOURCES = [
-    { id: 'claude', name: 'Claude 网页', tag: 'Token 估算' },
-    { id: 'chatgpt', name: 'ChatGPT / Codex 网页', tag: 'Token 估算' },
-  ]
-  const CLI_SOURCES = [
-    { id: 'claude_code', name: 'Claude Code', tag: 'Token 精确' },
-    { id: 'codex', name: 'Codex CLI', tag: 'Token 精确' },
-  ]
-  const DESKTOP_SOURCES = [
-    { id: 'claude_desktop', name: 'Claude 桌面', tag: '无 Token 记录', tokensUnknown: true },
-    { id: 'chatgpt_desktop', name: 'ChatGPT 桌面', tag: '无 Token 记录', tokensUnknown: true },
-    { id: 'claude_desktop_code', name: 'Claude Code 标签页', tag: 'Token 精确', minutesUnknown: true, cache: true },
-    { id: 'codex_desktop_code', name: 'Codex 桌面会话', tag: 'Token 精确', minutesUnknown: true, cache: true },
-  ]
-  const SOURCES = [...WEB_SOURCES, ...CLI_SOURCES, ...DESKTOP_SOURCES]
-  const GROUPS = [
-    { id: 'web_total', name: '网页端', color: '--web' },
-    { id: 'cli_total', name: '终端 CLI', color: '--cli' },
-    { id: 'desktop_total', name: '桌面软件', color: '--desktop' },
+  // 三端：网页（扩展，token 估算）· 终端（会话记录，token 实际）· 桌面（前台时长 + Code 页实际 token）
+  const ENDS = [
+    { id: 'web_total', name: '网页', color: '--web', note: 'Token 估算', subs: [
+      { id: 'claude', name: 'Claude' }, { id: 'chatgpt', name: 'ChatGPT' }] },
+    { id: 'cli_total', name: '终端', color: '--cli', note: 'Token 实际', subs: [
+      { id: 'claude_code', name: 'Claude Code' }, { id: 'codex', name: 'Codex' }] },
+    { id: 'desktop_total', name: '桌面', color: '--desktop', note: '对话只计时长', subs: [
+      { id: 'claude_desktop', name: 'Claude 对话', only: 'time' }, { id: 'chatgpt_desktop', name: 'ChatGPT 对话', only: 'time' },
+      { id: 'claude_desktop_code', name: 'Claude Code 页', only: 'tok' }, { id: 'codex_desktop_code', name: 'Codex 会话', only: 'tok' }] },
   ]
   const PERIODS = [['day', '今日'], ['week', '本周'], ['month', '本月'], ['year', '今年'], ['all', '累计']]
+  const METRICS = [['time', '时长'], ['tok', 'Token']]
+  const DAYS = 30
   let period = store.get('wb-period', 'day')
   if (!PERIODS.some(p => p[0] === period)) period = 'day'
+  let metric = store.get('wb-metric', 'time')
+  if (!METRICS.some(m => m[0] === metric)) metric = 'time'
   let data = null
   let days = []
+  const ZERO = { minutes: 0, tokens: 0 }
+  const val = (v, m = metric) => m === 'time' ? (v?.minutes || 0) : (v?.tokens || 0)
 
-  for (const [id, label] of PERIODS) {
-    $('period').append(el('button', { type: 'button', 'data-id': id, 'aria-pressed': String(id === period),
-      onclick: () => { period = id; store.set('wb-period', id); renderUsage() } }, label))
+  const segButtons = (box, items, cur, on) => box.replaceChildren(...items.map(([id, label]) =>
+    el('button', { type: 'button', 'data-id': id, 'aria-pressed': String(id === cur), onclick: () => on(id) }, label)))
+  const pressed = (box, cur) => { for (const b of box.children) b.setAttribute('aria-pressed', String(b.dataset.id === cur)) }
+  segButtons($('period'), PERIODS, period, id => { period = id; store.set('wb-period', id); renderUsage() })
+  segButtons($('metric'), METRICS, metric, id => { metric = id; store.set('wb-metric', id); pressed($('metric'), id); redrawMetric() })
+  $('legend').replaceChildren(...ENDS.map(s => el('span', {}, el('i', { style: `background:var(${s.color})` }), s.name)),
+    el('span', {}, el('i', { class: 'line' }), '7 日均线'))
+
+  const NS = 'http://www.w3.org/2000/svg'
+  const svgEl = (tag, a = {}) => { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); return e }
+
+  function quota(box, title, w) {
+    const left = w?.five_hour?.remaining_percent
+    const pct = left == null ? 0 : Math.max(0, Math.min(100, left))
+    const C = 2 * Math.PI * 19
+    const svg = svgEl('svg', { viewBox: '0 0 46 46', 'aria-hidden': 'true' })
+    svg.append(svgEl('circle', { class: 'track', cx: 23, cy: 23, r: 19 }),
+      svgEl('circle', { class: `arc${pct <= 10 ? ' bad' : pct <= 25 ? ' warn' : ''}`, cx: 23, cy: 23, r: 19,
+        'stroke-dasharray': C, 'stroke-dashoffset': C * (1 - pct / 100) }))
+    box.setAttribute('aria-label', `${title} 5 小时额度剩余 ${left == null ? '暂无' : Math.round(left) + '%'}`)
+    box.replaceChildren(svg, el('div', {}, el('div', { class: 'k' }, `${title} · 5 小时`),
+      el('div', { class: 'v num' }, left == null ? '—' : `${Math.round(left)}%`)))
   }
-  $('legend').replaceChildren(...GROUPS.map(s => el('span', {}, el('i', { style: `background:var(${s.color})` }), s.name)))
 
   function renderUsage() {
     if (!data) return
-    for (const b of $('period').children) b.setAttribute('aria-pressed', String(b.dataset.id === period))
+    pressed($('period'), period)
     const p = data.periods[period]
-    const today = data.periods.day
-    const zero = { minutes: 0, tokens: 0 }
-    const todayWeb = today.web_total || zero
-    const todayCli = today.cli_total || zero
-    const todayDesktop = today.desktop_total || zero
     const label = PERIODS.find(x => x[0] === period)[1]
-    $('h-time').replaceChildren(...big(fmtTime(today.total.minutes)))
-    $('h-tok').replaceChildren(...big(fmtTok(today.total.tokens)))
-    $('h-time-d').textContent = `网页 ${fmtTimeStr(todayWeb.minutes)} · 终端 ${fmtTimeStr(todayCli.minutes)} · 桌面 ${fmtTimeStr(todayDesktop.minutes)}`
-    $('h-tok-d').textContent = `网页含估算 ${fmtTokStr(todayWeb.tokens)} · 终端 ${fmtTokStr(todayCli.tokens)} · 桌面 Code ${fmtTokStr(todayDesktop.tokens)}`
-    $('web-period').textContent = label
-    $('cli-period').textContent = label
-    $('desktop-period').textContent = label
+    $('k-time').textContent = `${label}使用时长`
+    $('k-tok').textContent = `${label} Token`
+    $('h-time').replaceChildren(...big(fmtTime(p.total.minutes)))
+    $('h-tok').replaceChildren(...big(fmtTok(p.total.tokens)))
+    quota($('q-claude'), 'Claude', data.quota?.claude)
+    quota($('q-codex'), 'Codex', data.quota?.codex)
 
-    const sourceRow = (s, cli) => {
-      const v = p[s.id] || { minutes: 0, tokens: 0 }
-      const details = [el('b', {}, s.name), el('span', { class: 'tag' }, s.tag)]
-      if (cli || s.cache) details.push(el('div', { class: 'cache num' }, `缓存读取 ${fmtTokStr(v.cache_read_tokens || 0)}`))
-      return el('div', { class: 'source-row', 'data-source': s.id },
-        el('div', { class: 'source-name' }, ...details),
-        el('div', { class: 'source-stat' }, el('span', {}, '时长'), el('b', { class: 'num' }, s.minutesUnknown ? '—' : fmtTimeStr(v.minutes))),
-        el('div', { class: 'source-stat' }, el('span', {}, 'Token'), el('b', { class: 'num' }, s.tokensUnknown ? '—' : fmtTokStr(v.tokens))))
-    }
-    $('web-rows').replaceChildren(...WEB_SOURCES.map(s => sourceRow(s, false)))
-    $('cli-rows').replaceChildren(...CLI_SOURCES.map(s => sourceRow(s, true)))
-    $('desktop-rows').replaceChildren(...DESKTOP_SOURCES.map(s => sourceRow(s, false)))
-
-    const q = data.quota || {}
-    const quotaCard = (id, title, w) => {
-      const five = w?.five_hour?.remaining_percent
-      const clamp = n => Math.max(0, Math.min(100, Number(n) || 0))
-      const circumference = 2 * Math.PI * 20
-      const ns = 'http://www.w3.org/2000/svg'
-      const ring = document.createElementNS(ns, 'svg')
-      for (const [key, value] of Object.entries({ class: 'rings', viewBox: '0 0 50 50', role: 'img', 'aria-label': `${title} 5 小时额度剩余 ${five == null ? '暂无' : Math.round(five) + '%'}` })) ring.setAttribute(key, value)
-      const circle = (klass, offset = null) => {
-        const node = document.createElementNS(ns, 'circle')
-        for (const [key, value] of Object.entries({ class: klass, cx: 25, cy: 25, r: 20, 'stroke-width': 5 })) node.setAttribute(key, value)
-        if (offset != null) {
-          node.setAttribute('stroke-dasharray', circumference)
-          node.setAttribute('stroke-dashoffset', offset)
-        }
-        return node
-      }
-      ring.append(circle('track'), circle('five', circumference * (1 - clamp(five) / 100)))
-      $(id).replaceChildren(
-        el('div', {}, el('h3', {}, `${title} 额度`), el('div', { class: 'qmeta' }, '5 小时窗口')),
-        el('div', { class: 'ring-value' }, ring, el('div', {}, el('b', { class: 'num' }, five == null ? '—' : `${Math.round(five)}%`), el('small', {}, '5h 剩余'))))
-    }
-    quotaCard('quota-claude', 'Claude', q.claude)
-    quotaCard('quota-codex', 'Codex', q.codex)
+    const totalMin = Math.max(1, p.total.minutes)
+    $('ends').replaceChildren(...ENDS.map(end => {
+      const g = p[end.id] || ZERO
+      const subs = end.subs.map(s => {
+        const v = p[s.id] || ZERO
+        const text = s.only === 'time' ? fmtTimeStr(v.minutes) : s.only === 'tok' ? fmtTokStr(v.tokens)
+          : `${fmtTimeStr(v.minutes)} · ${fmtTokStr(v.tokens)}`
+        return el('div', {}, el('span', {}, s.name), el('span', { class: 'num' }, text))
+      })
+      return el('div', { class: 'end' },
+        el('div', { class: 'end-head' }, el('i', { style: `background:var(${end.color})` }), end.name, el('span', {}, end.note)),
+        el('div', { class: 'end-main' }, el('b', { class: 'num' }, fmtTimeStr(g.minutes)), el('em', { class: 'num' }, `${fmtTokStr(g.tokens)} tokens`)),
+        el('div', { class: 'share', title: `占总时长 ${Math.round(g.minutes / totalMin * 100)}%` },
+          el('i', { style: `width:${(g.minutes / totalMin * 100).toFixed(1)}%;background:var(${end.color})` })),
+        el('div', { class: 'end-sub' }, ...subs))
+    }))
 
     const updated = new Date(data.updated_at)
-    const validUpdated = Number.isFinite(updated.getTime())
-    const stale = validUpdated && Date.now() - updated.getTime() > 2 * 60 * 60 * 1000
-    const status = $('update-status')
-    status.classList.toggle('stale', stale)
-    status.replaceChildren(document.createTextNode(validUpdated ? `数据更新于 ${pad2(updated.getHours())}:${pad2(updated.getMinutes())}` : '更新时间未知'))
-    if (stale) status.append(el('b', {}, '已超过 2 小时，请检查同步'))
+    const ok = Number.isFinite(updated.getTime())
+    const stale = ok && Date.now() - updated.getTime() > 2 * 3600e3
+    $('update-status').classList.toggle('stale', stale)
+    $('update-status').textContent = ok ? `更新于 ${pad2(updated.getHours())}:${pad2(updated.getMinutes())}${stale ? '（已超过 2 小时）' : ''}` : '更新时间未知'
     const local = location.hostname === '127.0.0.1' || location.hostname === 'localhost'
-    const freshness = local ? '本机实时汇总' : '公开汇总每小时同步'
-    $('foot').textContent = `${freshness}。桌面时长每分钟采样前台应用，锁屏或空闲超过 5 分钟不计；普通桌面对话无 Token 记录。可识别的桌面 Code 与终端会话分开，Token 为实际值且缓存读取单列。网页 Token 为估算。`
+    $('foot').textContent = `${local ? '本机实时数据' : '公开数据每小时同步'}。终端与桌面 Code 的 token 来自会话记录（实际值，缓存读取不计入）；桌面对话只统计前台时长，官方没有 token 数据；网页 token 按文字估算。`
   }
 
+  // 每日堆叠柱 + 7 日均线（同一纵轴、同一单位）
   const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim()
+  const niceStep = (max, unitStep) => {
+    const raw = max / 4
+    const pow = 10 ** Math.floor(Math.log10(raw / unitStep)) * unitStep
+    return [1, 2, 2.5, 5, 10].map(m => m * pow).find(s => s >= raw) || pow * 10
+  }
   function drawChart() {
     const svg = $('svg')
-    const W = svg.clientWidth || 600, H = 150, padL = 30, padB = 20, padT = 6
+    const W = svg.clientWidth || 640, H = svg.clientHeight || 210, padL = 40, padB = 22, padT = 8
     svg.setAttribute('viewBox', `0 0 ${W} ${H}`)
     svg.replaceChildren()
     if (!days.length) return
-    const NS = 'http://www.w3.org/2000/svg'
-    const mk = (tag, a) => { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); return e }
-    const totals = days.map(d => GROUPS.reduce((sum, group) => sum + d[group.id].minutes, 0))
-    const maxH = Math.max(60, ...totals) / 60
-    const step = maxH <= 2 ? 0.5 : maxH <= 6 ? 1 : maxH <= 12 ? 2 : 4
-    const top = Math.ceil(maxH / step) * step
-    const y = min => padT + (H - padT - padB) * (1 - min / 60 / top)
+    const totals = days.map(d => ENDS.reduce((s, e) => s + val(d[e.id]), 0))
+    const isTime = metric === 'time'
+    const max = Math.max(isTime ? 60 : 1000, ...totals, ...days.map(d => d.ma))
+    const step = isTime ? niceStep(max, 30) : niceStep(max, 1)
+    const top = Math.ceil(max / step) * step
+    const y = v => padT + (H - padT - padB) * (1 - v / top)
+    const tick = v => isTime ? (v >= 60 ? `${+(v / 60).toFixed(1)}h` : `${v}m`) : fmtTokStr(v)
     for (let v = 0; v <= top + 1e-9; v += step) {
-      svg.append(mk('line', { x1: padL, x2: W, y1: y(v * 60), y2: y(v * 60), class: 'grid-line' }))
-      const t = mk('text', { x: padL - 6, y: y(v * 60) + 3.5, 'text-anchor': 'end', class: 'axis' }); t.textContent = `${v}h`; svg.append(t)
+      svg.append(svgEl('line', { x1: padL, x2: W, y1: y(v), y2: y(v), class: 'grid-line' }))
+      const t = svgEl('text', { x: padL - 8, y: y(v) + 3.5, 'text-anchor': 'end', class: 'axis' }); t.textContent = tick(v); svg.append(t)
     }
     const bw = (W - padL) / days.length
-    const barW = Math.min(22, bw * 0.62)
+    const barW = Math.max(3, Math.min(16, bw * 0.58))
+    const cursor = svgEl('line', { class: 'cursor', y1: padT, y2: H - padB, x1: 0, x2: 0, opacity: 0 })
     days.forEach((d, i) => {
       const cx = padL + bw * i + bw / 2
       let acc = 0
-      for (const s of GROUPS) {
-        const v = d[s.id].minutes
-        if (v <= 0) continue
+      const parts = ENDS.filter(e => val(d[e.id]) > 0)
+      parts.forEach((e, k) => {
+        const v = val(d[e.id])
         const y0 = y(acc), y1 = y(acc + v)
-        const h = Math.max(0, y0 - y1 - (acc > 0 ? 2 : 0))
+        const h = Math.max(0, y0 - y1 - (k > 0 ? 2 : 0))
         acc += v
-        if (h >= 0.5) svg.append(mk('rect', { x: cx - barW / 2, y: y1, width: barW, height: h, rx: 2, fill: css(s.color) }))
+        if (h < 0.5) return
+        // 只给最上面一段圆角，底部贴着基线
+        const isTop = k === parts.length - 1
+        const r = isTop ? Math.min(3, barW / 2, h) : 0
+        svg.append(svgEl('path', { fill: css(e.color), d:
+          `M${cx - barW / 2},${y1 + h} V${y1 + r} Q${cx - barW / 2},${y1} ${cx - barW / 2 + r},${y1} H${cx + barW / 2 - r} Q${cx + barW / 2},${y1} ${cx + barW / 2},${y1 + r} V${y1 + h} Z` }))
+      })
+      const every = days.length > 20 ? 5 : 2
+      if ((days.length - 1 - i) % every === 0) {
+        const t = svgEl('text', { x: cx, y: H - 6, 'text-anchor': 'middle', class: 'axis' })
+        t.textContent = d.date.slice(5).replace('-', '/'); svg.append(t)
       }
-      if (i % 2 === (days.length - 1) % 2) {
-        const t = mk('text', { x: cx, y: H - 5, 'text-anchor': 'middle', class: 'axis' }); t.textContent = d.date.slice(5).replace('-', '/'); svg.append(t)
-      }
-      const hit = mk('rect', { x: padL + bw * i, y: 0, width: bw, height: H - padB, fill: 'transparent' })
-      hit.addEventListener('mouseenter', () => showTip(i, cx))
-      hit.addEventListener('mouseleave', () => $('tip').classList.remove('on'))
+    })
+    const pts = days.map((d, i) => [padL + bw * i + bw / 2, y(d.ma)])
+    svg.append(svgEl('path', { class: 'trend', d: pts.map((p, i) => `${i ? 'L' : 'M'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ') }))
+    svg.append(cursor)
+    days.forEach((d, i) => {
+      const cx = padL + bw * i + bw / 2
+      const hit = svgEl('rect', { x: padL + bw * i, y: 0, width: bw, height: H - padB, fill: 'transparent' })
+      hit.addEventListener('mouseenter', () => { cursor.setAttribute('x1', cx); cursor.setAttribute('x2', cx); cursor.setAttribute('opacity', 1); showTip(i, cx) })
+      hit.addEventListener('mouseleave', () => { cursor.setAttribute('opacity', 0); $('tip').classList.remove('on') })
       svg.append(hit)
     })
   }
+  const fmtVal = v => metric === 'time' ? fmtTimeStr(v) : fmtTokStr(Math.round(v))
   function showTip(i, cx) {
     const d = days[i], tip = $('tip')
-    const total = GROUPS.reduce((sum, group) => sum + d[group.id].minutes, 0)
-    tip.replaceChildren(el('div', { class: 'tt' }, `${d.date} · ${fmtTimeStr(total)}`),
-      ...GROUPS.map(s => el('div', { class: 'tr' }, el('i', { style: `background:var(${s.color})` }), el('span', {}, s.name),
-        el('span', { class: 'num' }, `${fmtTimeStr(d[s.id].minutes)} · ${fmtTokStr(d[s.id].tokens)}`))))
-    tip.style.left = `${Math.min(Math.max(0, cx - 85), $('chart').clientWidth - 180)}px`
-    tip.style.top = '-8px'
+    const total = ENDS.reduce((s, e) => s + val(d[e.id]), 0)
+    tip.replaceChildren(el('div', { class: 'tt' }, d.date),
+      ...ENDS.map(e => el('div', { class: 'tr' }, el('i', { style: `background:var(${e.color})` }), el('span', {}, e.name), el('span', { class: 'num' }, fmtVal(val(d[e.id]))))),
+      el('div', { class: 'tr sum' }, el('span'), el('span', {}, '合计'), el('span', { class: 'num' }, fmtVal(total))),
+      el('div', { class: 'tr' }, el('i', { class: 'line' }), el('span', {}, '7 日均线'), el('span', { class: 'num' }, fmtVal(d.ma))))
+    const W = $('chart').clientWidth
+    tip.style.left = `${Math.min(Math.max(0, cx - 90), W - 190)}px`
+    tip.style.top = '-6px'
     tip.classList.add('on')
   }
   addEventListener('resize', () => drawChart())
 
   function renderTable() {
     $('table').replaceChildren(
-      el('tr', {}, el('th', {}, '日期'), ...GROUPS.map(s => el('th', {}, s.name)), el('th', {}, '合计')),
+      el('tr', {}, el('th', {}, '日期'), ...ENDS.map(e => el('th', {}, e.name)), el('th', {}, '合计'), el('th', {}, '7 日均线')),
       ...days.slice().reverse().map(d => el('tr', {}, el('td', {}, d.date),
-        ...GROUPS.map(s => el('td', { class: 'data-cell num' }, el('span', {}, fmtTimeStr(d[s.id].minutes)), el('small', {}, fmtTokStr(d[s.id].tokens)))),
-        el('td', { class: 'data-cell num' }, el('span', {}, fmtTimeStr(d.total.minutes)), el('small', {}, fmtTokStr(d.total.tokens))))))
+        ...ENDS.map(e => el('td', { class: 'num' }, fmtVal(val(d[e.id])))),
+        el('td', { class: 'num' }, fmtVal(ENDS.reduce((s, e) => s + val(d[e.id]), 0))),
+        el('td', { class: 'num' }, fmtVal(d.ma)))))
+  }
+
+  function buildDays() {
+    const byDate = Object.fromEntries((data.daily || []).map(d => [d.date, d]))
+    const end = dayKey()
+    const span = DAYS + 6 // 多取 6 天，让第一天的均线也有完整窗口
+    const all = Array.from({ length: span }, (_, i) => {
+      const date = addDays(end, i - span + 1)
+      const r = byDate[date] || {}
+      return { date, ...Object.fromEntries(ENDS.map(e => [e.id, r[e.id] || ZERO])) }
+    })
+    const total = d => ENDS.reduce((s, e) => s + val(d[e.id]), 0)
+    days = all.slice(6).map((d, i) => {
+      const win = all.slice(i, i + 7)
+      return { ...d, ma: win.reduce((s, x) => s + total(x), 0) / win.length }
+    })
   }
 
   async function loadUsage() {
@@ -532,31 +566,13 @@ form.add .ex { grid-column: 1 / 3; }
       const r = await fetch(`data.json?t=${Math.floor(Date.now() / 300000)}`, { cache: 'no-store' })
       if (!r.ok) throw new Error(r.status)
       data = await r.json()
-      const byDate = Object.fromEntries((data.daily || []).map(d => [d.date, d]))
-      const zero = { minutes: 0, tokens: 0 }
-      const end = dayKey()
-      days = Array.from({ length: 14 }, (_, i) => {
-        const d = addDays(end, i - 13)
-        const r = byDate[d] || {}
-        const sources = Object.fromEntries(SOURCES.map(s => [s.id, r[s.id] || zero]))
-        const group = (id, memberIds) => r[id] || memberIds.reduce((a, sourceId) => ({
-          minutes: a.minutes + sources[sourceId].minutes,
-          tokens: a.tokens + sources[sourceId].tokens,
-        }), { minutes: 0, tokens: 0 })
-        const webTotal = group('web_total', WEB_SOURCES.map(s => s.id))
-        const cliTotal = group('cli_total', CLI_SOURCES.map(s => s.id))
-        const desktopTotal = group('desktop_total', DESKTOP_SOURCES.map(s => s.id))
-        return { date: d, total: r.total || {
-          minutes: webTotal.minutes + cliTotal.minutes + desktopTotal.minutes,
-          tokens: webTotal.tokens + cliTotal.tokens + desktopTotal.tokens,
-        }, web_total: webTotal, cli_total: cliTotal, desktop_total: desktopTotal, ...sources }
-      })
-      renderUsage(); drawChart(); renderTable()
+      buildDays(); renderUsage(); drawChart(); renderTable()
     } catch {
       $('update-status').textContent = '暂时读不到用量数据'
-      $('foot').textContent = '暂时读不到用量数据，稍后再试。'
     }
   }
+  // 切换指标：均线跟着重算
+  function redrawMetric() { if (data) { buildDays(); drawChart(); renderTable() } }
 
   // ================= 英语：跟读（主） =================
   const PASSAGES = [
