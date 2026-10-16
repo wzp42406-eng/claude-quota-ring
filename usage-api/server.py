@@ -21,6 +21,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 import collect
+import english
 
 DATA_DIR = Path(os.environ.get('AI_USAGE_DIR', Path.home() / 'Library/Application Support/ai-usage'))
 DATA = DATA_DIR / 'usage.json'
@@ -30,6 +31,8 @@ CLI = ('claude_code', 'codex')       # 终端会话记录
 SOURCES = WEB + CLI
 CLI_STATE = DATA_DIR / 'cli_state.json'
 QUOTA = DATA_DIR / 'quota.json'
+ENGLISH = DATA_DIR / 'english.json'
+PAGE = Path(__file__).with_name('workbench.html')
 PERIODS = ('day', 'week', 'month', 'year', 'all')
 LOCK = threading.Lock()
 
@@ -254,17 +257,59 @@ class Handler(BaseHTTPRequestHandler):
         got = self.headers.get('Authorization', '')
         return secrets.compare_digest(got, f'Bearer {api_key()}')
 
+    def same_origin(self):
+        """本服务自己提供的工作台页面发来的请求。Sec-Fetch-Site 由浏览器填写，别的网站伪造不了。"""
+        return self.headers.get('Sec-Fetch-Site') == 'same-origin'
+
+    def page(self):
+        try:
+            body = PAGE.read_bytes()
+        except OSError:
+            return self.reply(404, {'error': 'workbench.html missing'})
+        self.send_response(200)
+        self.send_header('Content-Type', 'text/html; charset=utf-8')
+        self.send_header('Content-Length', str(len(body)))
+        self.send_header('Cache-Control', 'no-store')
+        self.send_header('X-Frame-Options', 'DENY')
+        self.end_headers()
+        self.wfile.write(body)
+
     def do_GET(self):
         url = urlparse(self.path)
         if url.path == '/health':
             return self.reply(200, {'ok': True})
-        if url.path not in ('/api/usage', '/api/usage/daily'):
+        if url.path in ('/', '/index.html'):
+            return self.page()
+        if url.path not in ('/api/usage', '/api/usage/daily', '/api/english'):
             return self.reply(404, {'error': 'not found'})
-        if not self.authorized():
+        if not (self.authorized() or self.same_origin()):
             return self.reply(401, {'error': '需要 Authorization: Bearer <密钥>'})
         if url.path == '/api/usage':
             return self.reply(200, summary())
+        if url.path == '/api/english':
+            with LOCK:
+                return self.reply(200, english.view(english_data()))
         return self.reply(200, daily(parse_qs(url.query)))
+
+    def english_post(self, path, obj):
+        if not (self.authorized() or self.same_origin()):
+            return self.reply(403, {'error': 'forbidden'})
+        with LOCK:
+            data = english_data()
+            try:
+                if path == '/api/english/review':
+                    english.review(data, obj.get('id'), obj.get('grade'))
+                elif path == '/api/english/cards':
+                    english.add(data, str(obj.get('front', '')), str(obj.get('back', '')),
+                                str(obj.get('example', '')), str(obj.get('note', '')))
+                else:
+                    english.remove(data, obj.get('id'))
+            except KeyError:
+                return self.reply(404, {'error': 'no such card'})
+            except ValueError as err:
+                return self.reply(400, {'error': str(err)})
+            save(ENGLISH, data)
+            return self.reply(200, english.view(data))
 
     def body(self):
         n = int(self.headers.get('Content-Length', 0))
@@ -277,6 +322,11 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         path = urlparse(self.path).path
+        if path in ('/api/english/review', '/api/english/cards', '/api/english/delete'):
+            try:
+                return self.english_post(path, self.body())
+            except ValueError:
+                return self.reply(400, {'error': 'bad json'})
         if path not in ('/api/sync', '/api/quota'):
             return self.reply(404, {'error': 'not found'})
         # 写入只接受浏览器扩展（Origin 是 chrome-extension://，网页做不到）或带密钥的本机程序（Claude Code 插件）
@@ -301,6 +351,14 @@ class Handler(BaseHTTPRequestHandler):
         if obj.get('quota'):
             set_quota('claude', obj['quota'])
         return self.reply(200, {'ok': True, 'days': len(days)})
+
+
+def english_data():
+    data = load(ENGLISH, None)
+    if data is None:
+        data = english.fresh()
+        save(ENGLISH, data)
+    return data
 
 
 def fmt_min(m):

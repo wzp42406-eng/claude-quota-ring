@@ -1,0 +1,609 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>个人工作台</title>
+<style>
+:root {
+  color-scheme: light;
+  --bg: #f6f5f1;
+  --panel: #fffffe;
+  --ink: #1b1a17;
+  --ink-2: #57554f;
+  --ink-3: #8e8b83;
+  --line: #e7e4dc;
+  --line-2: #efede7;
+  --accent: #b5562f;
+  --hover: #f1efe9;
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100;
+  --good: #1f7a4d; --warn: #b26b00; --bad: #c0392b;
+  --shadow: 0 1px 2px rgb(40 30 10 / 4%), 0 8px 24px rgb(40 30 10 / 5%);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #131312; --panel: #1b1b19; --ink: #efede8; --ink-2: #b9b6ad; --ink-3: #85827a;
+    --line: #2c2b28; --line-2: #242321; --accent: #e07a4f; --hover: #23221f;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+    --good: #4cbb84; --warn: #e0a33a; --bad: #e66767;
+    --shadow: none;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #131312; --panel: #1b1b19; --ink: #efede8; --ink-2: #b9b6ad; --ink-3: #85827a;
+  --line: #2c2b28; --line-2: #242321; --accent: #e07a4f; --hover: #23221f;
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+  --good: #4cbb84; --warn: #e0a33a; --bad: #e66767;
+  --shadow: none;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font: 14px/1.5 -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", "Hiragino Sans GB", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+button, input, textarea { font: inherit; color: inherit; }
+.num { font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+.serif { font-family: "New York", "Iowan Old Style", Georgia, "Songti SC", serif; }
+
+.wrap { max-width: 1240px; margin: 0 auto; padding: 28px 24px 48px; }
+header.top { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 22px; }
+header.top h1 { margin: 0; font-size: 20px; font-weight: 600; letter-spacing: 0.02em; }
+header.top .meta { color: var(--ink-3); font-size: 13px; display: flex; gap: 14px; align-items: center; }
+.dot { width: 6px; height: 6px; border-radius: 50%; background: var(--good); display: inline-block; margin-right: 6px; vertical-align: 1px; }
+.dot.off { background: var(--bad); }
+.theme { border: 0; background: none; color: var(--ink-3); cursor: pointer; padding: 2px 4px; border-radius: 6px; }
+.theme:hover { color: var(--ink); background: var(--hover); }
+
+.grid { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+@media (max-width: 980px) { .grid { grid-template-columns: 1fr; } }
+
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow); padding: 22px 24px 24px; }
+.panel-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; flex-wrap: wrap; }
+.panel-head h2 { margin: 0; font-size: 15px; font-weight: 600; letter-spacing: 0.04em; }
+.sub { color: var(--ink-3); font-size: 12px; }
+.section-title { color: var(--ink-3); font-size: 12px; letter-spacing: 0.06em; margin: 22px 0 10px; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+
+/* 分段切换 */
+.seg { display: inline-flex; background: var(--line-2); border-radius: 9px; padding: 2px; }
+.seg button { border: 0; background: none; padding: 4px 11px; border-radius: 7px; cursor: pointer; color: var(--ink-2); font-size: 13px; }
+.seg button[aria-pressed="true"] { background: var(--panel); color: var(--ink); box-shadow: 0 1px 2px rgb(0 0 0 / 8%); }
+
+/* 总览数字 */
+.hero { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; border-top: 1px solid var(--line-2); border-bottom: 1px solid var(--line-2); }
+.hero > div { padding: 14px 0 14px; }
+.hero > div + div { padding-left: 18px; border-left: 1px solid var(--line-2); }
+.hero .k { color: var(--ink-3); font-size: 12px; }
+.hero .v { font-size: 30px; font-weight: 600; line-height: 1.15; margin-top: 2px; }
+.hero .v small { font-size: 15px; font-weight: 500; color: var(--ink-2); margin-left: 1px; }
+.hero .d { color: var(--ink-3); font-size: 12px; margin-top: 2px; }
+
+/* 来源列表 */
+.rows { display: grid; gap: 2px; }
+.row { display: grid; grid-template-columns: 10px minmax(0, 1fr) 76px 76px; align-items: center; gap: 10px; padding: 7px 0; }
+.row .sw { width: 8px; height: 8px; border-radius: 2px; }
+.row .name { display: flex; gap: 8px; align-items: baseline; min-width: 0; }
+.row .name span:first-child { white-space: nowrap; }
+.tag { font-size: 11px; color: var(--ink-3); border: 1px solid var(--line); border-radius: 5px; padding: 0 5px; line-height: 17px; white-space: nowrap; }
+.row .t, .row .n { text-align: right; }
+.row .n { color: var(--ink-2); }
+.row .bar { grid-column: 2 / -1; height: 3px; background: var(--line-2); border-radius: 2px; overflow: hidden; margin-top: -2px; }
+.row .bar i { display: block; height: 100%; border-radius: 2px; }
+.row.head { color: var(--ink-3); font-size: 12px; padding: 0 0 2px; }
+
+/* 额度 */
+.quota { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.qcard { border: 1px solid var(--line-2); border-radius: 12px; padding: 12px 14px; }
+.qcard h3 { margin: 0 0 8px; font-size: 13px; font-weight: 600; }
+.qline { display: grid; grid-template-columns: 26px minmax(0, 1fr) 44px; gap: 8px; align-items: center; font-size: 12px; color: var(--ink-2); }
+.qline + .qline { margin-top: 8px; }
+.qline b { font-weight: 600; color: var(--ink); text-align: right; font-size: 13px; }
+.meter { height: 5px; background: var(--line-2); border-radius: 3px; overflow: hidden; }
+.meter i { display: block; height: 100%; background: var(--ink-2); border-radius: 3px; transition: width 600ms ease; }
+.meter i.warn { background: var(--warn); }
+.meter i.bad { background: var(--bad); }
+.qreset { color: var(--ink-3); font-size: 11.5px; grid-column: 2 / -1; margin-top: -3px; }
+.empty { color: var(--ink-3); font-size: 12.5px; }
+
+/* 图表 */
+.legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--ink-2); }
+.legend span { display: inline-flex; align-items: center; gap: 5px; }
+.legend i { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
+.chart { position: relative; margin-top: 10px; }
+.chart svg { display: block; width: 100%; height: 150px; overflow: visible; }
+.chart .axis { fill: var(--ink-3); font-size: 10.5px; }
+.chart .grid-line { stroke: var(--line-2); stroke-width: 1; }
+.tip { position: absolute; pointer-events: none; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; font-size: 12px; box-shadow: 0 6px 20px rgb(0 0 0 / 10%); min-width: 150px; opacity: 0; transition: opacity 120ms; z-index: 5; }
+.tip.on { opacity: 1; }
+.tip .tt { color: var(--ink-3); margin-bottom: 4px; }
+.tip .tr { display: grid; grid-template-columns: 10px 1fr auto; gap: 6px; align-items: center; }
+.tip .tr i { width: 8px; height: 8px; border-radius: 2px; }
+details.data { margin-top: 10px; font-size: 12px; color: var(--ink-3); }
+details.data summary { cursor: pointer; width: max-content; }
+details.data table { width: 100%; border-collapse: collapse; margin-top: 8px; color: var(--ink-2); }
+details.data th, details.data td { text-align: right; padding: 3px 4px; border-bottom: 1px solid var(--line-2); font-weight: 400; }
+details.data th:first-child, details.data td:first-child { text-align: left; }
+.foot { margin-top: 18px; color: var(--ink-3); font-size: 11.5px; line-height: 1.6; }
+
+/* 英语 */
+.chips { display: flex; gap: 16px; color: var(--ink-2); font-size: 12.5px; }
+.chips b { color: var(--ink); font-weight: 600; margin-right: 2px; }
+.progress { height: 3px; background: var(--line-2); border-radius: 2px; overflow: hidden; margin-bottom: 16px; }
+.progress i { display: block; height: 100%; background: var(--accent); transition: width 400ms ease; }
+.study { border: 1px solid var(--line-2); border-radius: 14px; padding: 26px 22px 18px; min-height: 260px; display: flex; flex-direction: column; }
+.study .front { font-size: 30px; line-height: 1.25; font-weight: 500; text-align: center; margin: 14px 0 6px; word-break: break-word; }
+.study .boxinfo { text-align: center; color: var(--ink-3); font-size: 12px; }
+.study .back { text-align: center; font-size: 17px; margin-top: 16px; }
+.study .example { text-align: center; color: var(--ink-2); font-size: 14.5px; margin-top: 10px; font-style: italic; line-height: 1.55; }
+.study .spacer { flex: 1; min-height: 18px; }
+.speak { border: 0; background: none; color: var(--ink-3); cursor: pointer; padding: 2px 6px; border-radius: 6px; font-size: 12px; vertical-align: 2px; }
+.speak:hover { color: var(--ink); background: var(--hover); }
+.actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.btn { border: 1px solid var(--line); background: var(--panel); border-radius: 10px; padding: 9px 10px; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 1px; transition: background 120ms, border-color 120ms; }
+.btn:hover { background: var(--hover); }
+.btn small { color: var(--ink-3); font-size: 11px; }
+.btn kbd { font: 10.5px ui-monospace, monospace; color: var(--ink-3); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; margin-left: 4px; }
+.btn.primary { grid-column: 1 / -1; background: var(--ink); color: var(--panel); border-color: var(--ink); flex-direction: row; justify-content: center; }
+.btn.primary kbd { color: inherit; border-color: color-mix(in srgb, var(--panel) 40%, transparent); }
+.btn.primary:hover { opacity: 0.9; background: var(--ink); }
+.btn.again b { color: var(--bad); font-weight: 600; }
+.btn.hard b { color: var(--warn); font-weight: 600; }
+.btn.good b { color: var(--good); font-weight: 600; }
+.done { text-align: center; margin: auto 0; }
+.done .big { font-size: 22px; font-weight: 600; margin-bottom: 4px; }
+.week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-top: 18px; align-items: end; height: 54px; }
+.week div { display: flex; flex-direction: column; align-items: center; gap: 4px; height: 100%; justify-content: flex-end; }
+.week i { width: 100%; max-width: 22px; background: var(--accent); border-radius: 4px 4px 0 0; min-height: 2px; opacity: 0.85; }
+.week i.zero { background: var(--line); opacity: 1; }
+.week span { color: var(--ink-3); font-size: 10.5px; }
+
+form.add { display: grid; gap: 8px; margin-top: 4px; }
+form.add .two { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.field { border: 1px solid var(--line); background: var(--bg); border-radius: 9px; padding: 8px 10px; width: 100%; outline: none; }
+.field:focus { border-color: var(--ink-3); background: var(--panel); }
+form.add .row-end { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.btn-sm { border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 6px 14px; cursor: pointer; }
+.btn-sm:hover { background: var(--hover); }
+.msg { font-size: 12px; color: var(--ink-3); }
+.msg.err { color: var(--bad); }
+
+details.deck { margin-top: 18px; }
+details.deck summary { cursor: pointer; color: var(--ink-3); font-size: 12px; letter-spacing: 0.06em; list-style: none; display: flex; justify-content: space-between; }
+details.deck summary::-webkit-details-marker { display: none; }
+.deck-list { margin-top: 10px; max-height: 280px; overflow: auto; border-top: 1px solid var(--line-2); }
+.deck-item { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; align-items: center; padding: 7px 2px; border-bottom: 1px solid var(--line-2); font-size: 13px; }
+.deck-item .f { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.deck-item .f span { color: var(--ink-3); margin-left: 8px; }
+.deck-item .b { color: var(--ink-3); font-size: 11.5px; }
+.deck-item button { border: 0; background: none; color: var(--ink-3); cursor: pointer; padding: 2px 6px; border-radius: 6px; }
+.deck-item button:hover { color: var(--bad); background: var(--hover); }
+
+.offline { display: none; margin-bottom: 16px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 10px; color: var(--ink-2); background: var(--panel); font-size: 13px; }
+.offline.on { display: block; }
+
+@media (max-width: 560px) {
+  .wrap { padding: 18px 16px 36px; }
+  .panel { padding: 18px 16px 20px; }
+  .hero .v { font-size: 24px; }
+  .quota { grid-template-columns: 1fr; }
+  .row { grid-template-columns: 10px minmax(0, 1fr) 62px 58px; }
+  .study .front { font-size: 26px; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>工作台</h1>
+    <div class="meta">
+      <span id="today"></span>
+      <span id="status"><span class="dot"></span>已连接</span>
+      <button class="theme" id="theme" title="切换深浅色">◐</button>
+    </div>
+  </header>
+  <div class="offline" id="offline">连不上本机用量服务。运行 <code>bash ~/claude-quota-ring/usage-api/install.sh</code> 后刷新本页。</div>
+
+  <div class="grid">
+    <!-- ==================== AI 用量 ==================== -->
+    <section class="panel" aria-labelledby="ai-h">
+      <div class="panel-head">
+        <h2 id="ai-h">AI 用量</h2>
+        <div class="seg" id="period" role="group" aria-label="统计区间"></div>
+      </div>
+
+      <div class="hero">
+        <div><div class="k">使用时长</div><div class="v num" id="h-time">—</div><div class="d" id="h-time-d">&nbsp;</div></div>
+        <div><div class="k">Token</div><div class="v num" id="h-tok">—</div><div class="d" id="h-tok-d">&nbsp;</div></div>
+        <div><div class="k">缓存命中</div><div class="v num" id="h-cache">—</div><div class="d">终端读缓存，不另计</div></div>
+      </div>
+
+      <div class="section-title"><span>按来源</span></div>
+      <div class="rows" id="rows"></div>
+
+      <div class="section-title"><span>额度剩余</span><span id="q-note"></span></div>
+      <div class="quota" id="quota"></div>
+
+      <div class="section-title"><span>近 14 天使用时长</span><div class="legend" id="legend"></div></div>
+      <div class="chart" id="chart"><svg id="svg" role="img" aria-label="近 14 天每天各来源使用时长"></svg><div class="tip" id="tip"></div></div>
+      <details class="data"><summary>查看数据</summary><table id="table"></table></details>
+
+      <div class="foot" id="foot"></div>
+    </section>
+
+    <!-- ==================== 英语 ==================== -->
+    <section class="panel" aria-labelledby="en-h">
+      <div class="panel-head">
+        <h2 id="en-h">英语</h2>
+        <div class="chips" id="chips"></div>
+      </div>
+      <div class="progress"><i id="prog" style="width:0"></i></div>
+      <div class="study" id="study" aria-live="polite"></div>
+
+      <div class="section-title"><span>添加词条</span></div>
+      <form class="add" id="add" autocomplete="off">
+        <div class="two">
+          <input class="field" name="front" placeholder="英文，如 follow up" required>
+          <input class="field" name="back" placeholder="中文意思" required>
+        </div>
+        <input class="field" name="example" placeholder="例句（可选，最好是你会真正说的话）">
+        <div class="row-end"><span class="msg" id="add-msg">新词条会排进明天之前的新卡里</span><button class="btn-sm" type="submit">添加</button></div>
+      </form>
+
+      <details class="deck" id="deck"><summary><span>词库</span><span id="deck-count"></span></summary>
+        <input class="field" id="search" placeholder="搜索" style="margin-top:10px">
+        <div class="deck-list" id="deck-list"></div>
+      </details>
+    </section>
+  </div>
+</div>
+
+<script>
+(() => {
+  // ---------- 通用 ----------
+  const $ = id => document.getElementById(id)
+  const el = (tag, attrs = {}, ...kids) => {
+    const e = document.createElement(tag)
+    for (const [k, v] of Object.entries(attrs)) {
+      if (k === 'class') e.className = v
+      else if (k === 'style') e.style.cssText = v
+      else if (k.startsWith('on')) e.addEventListener(k.slice(2), v)
+      else e.setAttribute(k, v)
+    }
+    for (const k of kids.flat()) if (k != null) e.append(k)
+    return e
+  }
+  const store = {
+    get: (k, d) => { try { return localStorage.getItem(k) ?? d } catch { return d } },
+    set: (k, v) => { try { localStorage.setItem(k, v) } catch { /* 无痕模式 */ } },
+  }
+  const fmtTime = min => {
+    const m = Math.floor(min)
+    if (m < 60) return [m, 'm']
+    const h = Math.floor(m / 60)
+    return h >= 100 ? [h, 'h'] : [`${h}h${String(m % 60).padStart(2, '0')}`, 'm']
+  }
+  const fmtTimeStr = min => fmtTime(min).join('')
+  const fmtTok = n => n >= 1e9 ? [(n / 1e9).toFixed(1), 'B'] : n >= 1e6 ? [(n / 1e6).toFixed(1), 'M']
+    : n >= 1e3 ? [(n / 1e3).toFixed(n < 1e4 ? 1 : 0), 'k'] : [String(n), '']
+  const fmtTokStr = n => fmtTok(n).join('')
+  const big = ([v, unit]) => [document.createTextNode(v), unit ? el('small', {}, unit) : null]
+  const until = iso => {
+    if (!iso) return ''
+    const m = Math.round((Date.parse(iso) - Date.now()) / 60000)
+    if (!isFinite(m)) return ''
+    if (m <= 0) return '已重置'
+    if (m < 60) return `${m} 分钟后重置`
+    if (m < 1440) return `${Math.floor(m / 60)} 小时 ${m % 60} 分后重置`
+    const d = new Date(iso)
+    return `周${'日一二三四五六'[d.getDay()]} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')} 重置`
+  }
+  async function api(path, body) {
+    const r = await fetch(path, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {})
+    const data = await r.json().catch(() => ({}))
+    if (!r.ok) throw new Error(data.error || String(r.status))
+    return data
+  }
+  function online(ok) {
+    $('offline').classList.toggle('on', !ok)
+    $('status').replaceChildren(el('span', { class: ok ? 'dot' : 'dot off' }), ok ? '已连接' : '未连接')
+  }
+
+  // ---------- 主题 ----------
+  const applyTheme = t => { if (t) document.documentElement.dataset.theme = t; else delete document.documentElement.dataset.theme }
+  applyTheme(store.get('wb-theme', ''))
+  $('theme').addEventListener('click', () => {
+    const dark = matchMedia('(prefers-color-scheme: dark)').matches
+    const cur = document.documentElement.dataset.theme || (dark ? 'dark' : 'light')
+    const next = cur === 'dark' ? 'light' : 'dark'
+    applyTheme(next); store.set('wb-theme', next)
+    drawChart()
+  })
+  $('today').textContent = new Date().toLocaleDateString('zh-CN', { month: 'long', day: 'numeric', weekday: 'short' })
+
+  // ==================== AI 用量 ====================
+  const SOURCES = [
+    { id: 'claude_code', name: 'Claude Code', tag: '实际', color: 'var(--s1)' },
+    { id: 'codex', name: 'Codex', tag: '实际', color: 'var(--s2)' },
+    { id: 'claude', name: 'Claude 网页', tag: '估算', color: 'var(--s3)' },
+    { id: 'chatgpt', name: 'ChatGPT 网页', tag: '估算', color: 'var(--s4)' },
+  ]
+  const PERIODS = [['day', '今日'], ['week', '本周'], ['month', '本月'], ['year', '今年'], ['all', '累计']]
+  let period = store.get('wb-period', 'day')
+  if (!PERIODS.some(p => p[0] === period)) period = 'day'
+  let usage = null
+  let days = []
+
+  for (const [id, label] of PERIODS) {
+    $('period').append(el('button', { type: 'button', 'data-id': id, 'aria-pressed': String(id === period),
+      onclick: () => { period = id; store.set('wb-period', id); renderUsage() } }, label))
+  }
+
+  function renderUsage() {
+    if (!usage) return
+    for (const b of $('period').children) b.setAttribute('aria-pressed', String(b.dataset.id === period))
+    const p = usage.periods[period]
+    const label = PERIODS.find(x => x[0] === period)[1]
+    $('h-time').replaceChildren(...big(fmtTime(p.total.minutes)))
+    $('h-tok').replaceChildren(...big(fmtTok(p.total.tokens)))
+    $('h-cache').replaceChildren(...big(fmtTok(p.cli_total.cache_read_tokens || 0)))
+    $('h-time-d').textContent = `${label} · 终端 ${fmtTimeStr(p.cli_total.minutes)} · 网页 ${fmtTimeStr(p.web_total.minutes)}`
+    $('h-tok-d').textContent = `终端 ${fmtTokStr(p.cli_total.tokens)} · 网页 ${fmtTokStr(p.web_total.tokens)}`
+
+    const maxMin = Math.max(1, ...SOURCES.map(s => p[s.id].minutes))
+    $('rows').replaceChildren(
+      el('div', { class: 'row head' }, el('span'), el('span', {}, '来源'), el('span', { class: 't' }, '时长'), el('span', { class: 'n' }, 'Token')),
+      ...SOURCES.map(s => el('div', { class: 'row' },
+        el('span', { class: 'sw', style: `background:${s.color}` }),
+        el('span', { class: 'name' }, el('span', {}, s.name), el('span', { class: 'tag' }, s.tag)),
+        el('span', { class: 't num' }, fmtTimeStr(p[s.id].minutes)),
+        el('span', { class: 'n num' }, fmtTokStr(p[s.id].tokens)),
+        el('span', { class: 'bar' }, el('i', { style: `width:${(p[s.id].minutes / maxMin * 100).toFixed(1)}%;background:${s.color}` })),
+      )))
+
+    const q = usage.quota || {}
+    const card = (title, w) => {
+      const lines = [['five_hour', '5h'], ['seven_day', '7d']].filter(([k]) => w && w[k])
+      if (!lines.length) return el('div', { class: 'qcard' }, el('h3', {}, title), el('div', { class: 'empty' }, '还没有读数：用一次后出现'))
+      return el('div', { class: 'qcard' }, el('h3', {}, title), ...lines.flatMap(([k, short]) => {
+        const left = w[k].remaining_percent
+        return [el('div', { class: 'qline' },
+          el('span', {}, short),
+          el('span', { class: 'meter' }, el('i', { class: left <= 10 ? 'bad' : left <= 25 ? 'warn' : '', style: `width:${left}%` })),
+          el('b', { class: 'num' }, `${Math.round(left)}%`),
+          el('span', { class: 'qreset' }, until(w[k].resets_at)))]
+      }))
+    }
+    $('quota').replaceChildren(card('Claude', q.claude), card('Codex', q.codex))
+    $('q-note').textContent = '条越短越接近上限'
+
+    const t = new Date(usage.updated_at)
+    $('foot').textContent = `更新于 ${t.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })} · 每分钟自动刷新。终端数据来自 Claude Code / Codex 会话记录（实际 token）；网页数据来自浏览器扩展（按文字估算）。Token = 未命中缓存的输入 + 写缓存 + 输出。`
+  }
+
+  // ---------- 14 天堆叠柱 ----------
+  const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim()
+  function drawChart() {
+    const svg = $('svg')
+    const W = svg.clientWidth || 600, H = 150, padL = 30, padB = 20, padT = 6
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`)
+    svg.replaceChildren()
+    if (!days.length) return
+    const NS = 'http://www.w3.org/2000/svg'
+    const mk = (tag, a) => { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); return e }
+    const totals = days.map(d => SOURCES.reduce((s, x) => s + d[x.id].minutes, 0))
+    const maxH = Math.max(60, ...totals) / 60
+    const stepH = maxH <= 2 ? 0.5 : maxH <= 6 ? 1 : maxH <= 12 ? 2 : 4
+    const top = Math.ceil(maxH / stepH) * stepH
+    const y = min => padT + (H - padT - padB) * (1 - min / 60 / top)
+    for (let v = 0; v <= top + 1e-9; v += stepH) {
+      svg.append(mk('line', { x1: padL, x2: W, y1: y(v * 60), y2: y(v * 60), class: 'grid-line' }))
+      const lab = mk('text', { x: padL - 6, y: y(v * 60) + 3.5, 'text-anchor': 'end', class: 'axis' })
+      lab.textContent = `${v}h`
+      svg.append(lab)
+    }
+    const bw = (W - padL) / days.length
+    const barW = Math.min(22, bw * 0.62)
+    days.forEach((d, i) => {
+      const cx = padL + bw * i + bw / 2
+      let acc = 0
+      SOURCES.forEach(s => {
+        const v = d[s.id].minutes
+        if (v <= 0) return
+        const y0 = y(acc), y1 = y(acc + v)
+        const h = Math.max(0, y0 - y1 - (acc > 0 ? 2 : 0)) // 段间 2px 空隙
+        acc += v
+        if (h < 0.5) return
+        svg.append(mk('rect', { x: cx - barW / 2, y: y1, width: barW, height: h, rx: 2, fill: css(s.color.slice(4, -1)) }))
+      })
+      if (i % 2 === (days.length - 1) % 2) {
+        const lab = mk('text', { x: cx, y: H - 5, 'text-anchor': 'middle', class: 'axis' })
+        lab.textContent = d.date.slice(5).replace('-', '/')
+        svg.append(lab)
+      }
+      const hit = mk('rect', { x: padL + bw * i, y: 0, width: bw, height: H - padB, fill: 'transparent' })
+      hit.addEventListener('mouseenter', () => showTip(i, cx))
+      hit.addEventListener('mouseleave', () => $('tip').classList.remove('on'))
+      svg.append(hit)
+    })
+  }
+  function showTip(i, cx) {
+    const d = days[i], tip = $('tip')
+    const total = SOURCES.reduce((s, x) => s + d[x.id].minutes, 0)
+    tip.replaceChildren(el('div', { class: 'tt' }, `${d.date} · ${fmtTimeStr(total)}`),
+      ...SOURCES.map(s => el('div', { class: 'tr' }, el('i', { style: `background:${s.color}` }), el('span', {}, s.name),
+        el('span', { class: 'num' }, `${fmtTimeStr(d[s.id].minutes)} · ${fmtTokStr(d[s.id].tokens)}`))))
+    const W = $('chart').clientWidth
+    tip.style.left = `${Math.min(Math.max(0, cx - 80), W - 170)}px`
+    tip.style.top = `-8px`
+    tip.classList.add('on')
+  }
+  $('legend').replaceChildren(...SOURCES.map(s => el('span', {}, el('i', { style: `background:${s.color}` }), s.name)))
+  addEventListener('resize', () => drawChart())
+
+  function renderTable() {
+    $('table').replaceChildren(
+      el('tr', {}, el('th', {}, '日期'), ...SOURCES.map(s => el('th', {}, s.name)), el('th', {}, '合计')),
+      ...days.slice().reverse().map(d => el('tr', {}, el('td', {}, d.date),
+        ...SOURCES.map(s => el('td', { class: 'num' }, `${fmtTimeStr(d[s.id].minutes)} / ${fmtTokStr(d[s.id].tokens)}`)),
+        el('td', { class: 'num' }, `${fmtTimeStr(d.total.minutes)} / ${fmtTokStr(d.total.tokens)}`))))
+  }
+
+  async function loadUsage() {
+    try {
+      const from = new Date(Date.now() - 13 * 864e5)
+      const key = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+      const [u, daily] = await Promise.all([api('/api/usage'), api(`/api/usage/daily?from=${key(from)}`)])
+      usage = u
+      const byDate = Object.fromEntries(daily.days.map(d => [d.date, d]))
+      const zero = { minutes: 0, tokens: 0 }
+      days = Array.from({ length: 14 }, (_, i) => {
+        const d = key(new Date(from.getTime() + i * 864e5))
+        const r = byDate[d] || {}
+        return { date: d, total: r.total || zero, ...Object.fromEntries(SOURCES.map(s => [s.id, r[s.id] || zero])) }
+      })
+      online(true)
+      renderUsage(); drawChart(); renderTable()
+    } catch {
+      online(false)
+    }
+  }
+
+  // ==================== 英语 ====================
+  const INTERVALS = [0, 1, 2, 4, 7, 15, 30, 60]
+  let en = null
+  let revealed = false
+  let startDue = null
+
+  const after = days => days === 0 ? '今天再来' : days === 1 ? '明天' : `${days} 天后`
+  const nextHint = (card, grade) => grade === 'again' ? '今天再来' : grade === 'hard' ? '明天'
+    : after(INTERVALS[Math.min(INTERVALS.length - 1, card.box + 1)])
+
+  function speak(text) {
+    if (!('speechSynthesis' in window) || !text) return
+    speechSynthesis.cancel()
+    const u = new SpeechSynthesisUtterance(text)
+    u.lang = 'en-US'
+    u.rate = 0.92
+    const v = speechSynthesis.getVoices().find(v => /en-US/.test(v.lang) && /Samantha|Ava|Allison|Google US/.test(v.name))
+    if (v) u.voice = v
+    speechSynthesis.speak(u)
+  }
+
+  function renderEnglish() {
+    if (!en) return
+    const s = en.stats
+    $('chips').replaceChildren(
+      el('span', {}, el('b', { class: 'num' }, String(s.due)), '待复习'),
+      el('span', {}, el('b', { class: 'num' }, String(s.reviewed_today)), '今日'),
+      el('span', {}, el('b', { class: 'num' }, String(s.streak)), '天连续'))
+    if (startDue === null) startDue = s.due + s.reviewed_today
+    const total = Math.max(startDue, s.due + s.reviewed_today)
+    $('prog').style.width = total ? `${(Math.min(s.reviewed_today, total) / total * 100).toFixed(1)}%` : '100%'
+
+    const card = en.queue[0]
+    const box = $('study')
+    if (!card) {
+      const max = Math.max(1, ...s.week.map(w => w.reviews))
+      box.replaceChildren(el('div', { class: 'done' },
+        el('div', { class: 'big' }, s.reviewed_today ? '今天的复习完成了' : '今天没有要复习的'),
+        el('div', { class: 'sub' }, `词库 ${s.total} · 已掌握 ${s.mastered} · 明天会有新卡`),
+        el('div', { class: 'week' }, ...s.week.map(w => el('div', { title: `${w.date}：${w.reviews} 次` },
+          el('i', { class: w.reviews ? '' : 'zero', style: `height:${w.reviews ? Math.max(8, w.reviews / max * 100) : 4}%` }),
+          el('span', {}, '日一二三四五六'[new Date(w.date + 'T00:00').getDay()]))))))
+      return
+    }
+    const isNew = card.box === 0
+    const kids = [
+      el('div', { class: 'boxinfo' }, isNew ? '新词' : `第 ${card.box} 轮 · 复习过 ${card.reviews} 次`),
+      el('div', { class: 'front serif' }, card.front, ' ', el('button', { class: 'speak', title: '朗读', onclick: () => speak(card.front) }, '▶ 读')),
+    ]
+    if (revealed) {
+      kids.push(el('div', { class: 'back' }, card.back))
+      if (card.example) kids.push(el('div', { class: 'example serif' }, card.example, ' ',
+        el('button', { class: 'speak', title: '朗读例句', onclick: () => speak(card.example) }, '▶')))
+    }
+    kids.push(el('div', { class: 'spacer' }))
+    kids.push(revealed
+      ? el('div', { class: 'actions' },
+          ...[['again', '忘了', '1'], ['hard', '模糊', '2'], ['good', '记得', '3']].map(([g, label, k]) =>
+            el('button', { class: `btn ${g}`, onclick: () => grade(g) },
+              el('span', {}, el('b', {}, label), el('kbd', {}, k)), el('small', {}, nextHint(card, g)))))
+      : el('div', { class: 'actions' }, el('button', { class: 'btn primary', onclick: reveal }, '显示释义', el('kbd', {}, '空格'))))
+    box.replaceChildren(...kids)
+  }
+
+  function reveal() {
+    if (!en?.queue[0] || revealed) return
+    revealed = true
+    renderEnglish()
+    speak(en.queue[0].front)
+  }
+
+  let busy = false
+  async function grade(g) {
+    const card = en?.queue[0]
+    if (!card || !revealed || busy) return
+    busy = true
+    try {
+      en = await api('/api/english/review', { id: card.id, grade: g })
+      revealed = false
+      renderEnglish(); renderDeck()
+    } catch (err) {
+      $('add-msg').textContent = `没保存上：${err.message}`
+    } finally { busy = false }
+  }
+
+  addEventListener('keydown', e => {
+    if ((e.target instanceof Element && e.target.closest('input, textarea, select, button')) || e.metaKey || e.ctrlKey || e.altKey) return
+    if (e.key === ' ' || e.key === 'Enter') { if (!revealed && en?.queue[0]) { e.preventDefault(); reveal() } }
+    else if (revealed && ['1', '2', '3'].includes(e.key)) { e.preventDefault(); grade(['again', 'hard', 'good'][+e.key - 1]) }
+  })
+
+  $('add').addEventListener('submit', async e => {
+    e.preventDefault()
+    const f = new FormData(e.target)
+    const msg = $('add-msg')
+    try {
+      en = await api('/api/english/cards', { front: f.get('front'), back: f.get('back'), example: f.get('example') })
+      e.target.reset()
+      msg.className = 'msg'; msg.textContent = `已添加「${f.get('front')}」`
+      e.target.front.focus()
+      renderEnglish(); renderDeck()
+    } catch (err) {
+      msg.className = 'msg err'
+      msg.textContent = err.message === 'already in the deck' ? '词库里已经有这个了' : `没添加上：${err.message}`
+    }
+  })
+
+  function renderDeck() {
+    if (!en) return
+    $('deck-count').textContent = `${en.stats.total} 条 · 已掌握 ${en.stats.mastered}`
+    const q = $('search').value.trim().toLowerCase()
+    const list = en.cards.filter(c => !q || c.front.toLowerCase().includes(q) || c.back.includes(q))
+    $('deck-list').replaceChildren(...list.map(c => el('div', { class: 'deck-item' },
+      el('div', { class: 'f' }, c.front, el('span', {}, c.back)),
+      el('span', { class: 'b' }, c.box === 0 ? '新' : c.box >= 5 ? '已掌握' : `第 ${c.box} 轮`),
+      el('button', { title: '从词库删除', onclick: async () => {
+        if (!confirm(`删除「${c.front}」？`)) return
+        try { en = await api('/api/english/delete', { id: c.id }); renderEnglish(); renderDeck() } catch { /* 留着 */ }
+      } }, '删除'))))
+  }
+  $('search').addEventListener('input', renderDeck)
+
+  async function loadEnglish() {
+    try { en = await api('/api/english'); renderEnglish(); renderDeck() } catch { /* 离线提示已由用量负责 */ }
+  }
+
+  loadUsage(); loadEnglish()
+  setInterval(() => { if (!document.hidden) loadUsage() }, 60000)
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) { loadUsage(); if (!revealed) loadEnglish() } })
+})()
+</script>
+</body>
+</html>
