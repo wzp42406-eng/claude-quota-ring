@@ -8,9 +8,12 @@
 增量读取：记住每个文件读到的位置，只读新增的完整行。
 tokens = 未命中缓存的输入 + 写缓存 + 输出；命中缓存的输入另记为 cache_read。
 时长 = 同一会话里相邻两条记录间隔不超过 5 分钟的部分相加。
+桌面端会话（Claude 桌面 Code 页、Codex 桌面）的时长：桌面前台采样开始之前按同样的间隔规则补算，
+开始之后只由前台采样（desktop_usage.py）计时，避免同一段时间算两次。
 """
 import datetime as dt
 import json
+import os
 from pathlib import Path
 
 HOME = Path.home()
@@ -19,7 +22,31 @@ SOURCES = {
     'codex': HOME / '.codex/sessions',
 }
 GAP_MS = 5 * 60 * 1000
-COLLECTOR_VERSION = 2
+COLLECTOR_VERSION = 3
+DATA_DIR = Path(os.environ.get('AI_USAGE_DIR', HOME / 'Library/Application Support/ai-usage'))
+_sampling_since = None  # 桌面前台采样开始的时刻（毫秒）；之前的桌面会话时长按间隔补算
+
+
+def sampling_since():
+    """读 desktop_state.json：采样开始时刻；旧状态没有记录时，取最早有采样数据那天的 0 点。"""
+    try:
+        state = json.loads((DATA_DIR / 'desktop_state.json').read_text('utf-8'))
+    except (OSError, ValueError):
+        return None
+    if state.get('started_ms'):
+        return int(state['started_ms'])
+    days = sorted(state.get('days') or {})
+    if not days:
+        return None
+    return int(dt.datetime.fromisoformat(days[0]).astimezone().timestamp() * 1000)
+
+
+def _desktop_time(days, site, st, ms, day):
+    """桌面会话：采样开始前按间隔计时；之后只推进时间点，不计时。"""
+    if _sampling_since is None or ms < _sampling_since:
+        _add_time(days, site, st, ms, day)
+    elif st.get('last_ms') is None or ms > st['last_ms']:
+        st['last_ms'] = ms
 
 
 def _ts(value):
@@ -52,8 +79,9 @@ def _claude_line(obj, days, st, quota):
     ms, day = _ts(ts)
     desktop = obj.get('entrypoint') == 'claude-desktop'
     site = 'claude_desktop_code' if desktop else 'claude_code'
-    # 桌面软件的时长由前台应用采样统计；会话相邻事件不能再重复计时。
-    if not desktop:
+    if desktop:
+        _desktop_time(days, site, st, ms, day)
+    else:
         _add_time(days, site, st, ms, day)
     msg = obj.get('message') if obj.get('type') == 'assistant' else None
     usage = isinstance(msg, dict) and msg.get('usage')
@@ -82,7 +110,9 @@ def _codex_line(obj, days, st, quota):
         st['desktop'] = 'desktop' in originator
     ms, day = _ts(ts)
     site = 'codex_desktop_code' if st.get('desktop') else 'codex'
-    if not st.get('desktop'):
+    if st.get('desktop'):
+        _desktop_time(days, site, st, ms, day)
+    else:
         _add_time(days, site, st, ms, day)
     if obj.get('type') != 'event_msg' or p.get('type') != 'token_count':
         return
@@ -129,6 +159,8 @@ def scan(state):
         state.clear()
         state['collector_version'] = COLLECTOR_VERSION
         changed = True
+    global _sampling_since
+    _sampling_since = sampling_since()
     files = state.setdefault('files', {})
     days = state.setdefault('days', {})
     quotas = state.setdefault('quota', {})

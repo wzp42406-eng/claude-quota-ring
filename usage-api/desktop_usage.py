@@ -61,6 +61,12 @@ def record_sample(state, now_ms, bundle_id, idle_ns, locked):
     """把一次采样写进 state；返回本次新增的毫秒数。"""
     previous = state.get('last_sample_ms')
     state['last_sample_ms'] = int(now_ms)
+    if 'started_ms' not in state:
+        # 记下采样从何时开始：collect.py 据此只给之前的桌面会话按间隔补时长。
+        # 旧状态已有数据时取最早那天 0 点，宁可少补，也不和采样重复。
+        days = sorted(state.get('days') or {})
+        state['started_ms'] = (int(dt.datetime.fromisoformat(days[0]).astimezone().timestamp() * 1000)
+                               if days else int(now_ms))
     site = BUNDLES.get(bundle_id)
     if site is None or previous is None or locked is not False or idle_ns is None or idle_ns > IDLE_LIMIT_NS:
         return 0
