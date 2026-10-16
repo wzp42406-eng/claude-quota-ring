@@ -1,0 +1,8 @@
+{
+  "name": "quota-band",
+  "version": "0.1.0",
+  "description": "在 Claude Code 输入框上方显示 5 小时与 7 天额度剩余及重置时间",
+  "author": { "name": "wzp42406-eng" },
+  "license": "MIT",
+  "types": "./types/index.d.ts"
+}

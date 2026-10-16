@@ -1,0 +1,56 @@
+/* 跟随 claude.ai 自身的设计变量；变量缺失时用接近的默认值 */
+#cq-ring {
+  --cq-track: hsl(var(--border-300, 30 3.3% 11.8%) / 0.25);
+  --cq-accent: hsl(var(--accent-main-100, 15 55.6% 52.4%));
+  --cq-danger: hsl(var(--danger-100, 0 58.6% 34.1%));
+  --cq-text: hsl(var(--text-400, 48 4.8% 59.2%));
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  height: 28px;
+  padding: 0 6px;
+  margin-left: 2px;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--cq-text);
+  cursor: default;
+  position: relative;
+  transition: background-color 150ms ease;
+}
+#cq-ring:hover { background: hsl(var(--bg-300, 48 7% 90%) / 0.6); }
+#cq-ring svg { display: block; transform: rotate(-90deg); }
+#cq-ring .cq-track { stroke: var(--cq-track); }
+#cq-ring .cq-arc { stroke: var(--cq-accent); transition: stroke-dashoffset 400ms ease; }
+#cq-ring[data-level="low"] .cq-arc { stroke: var(--cq-danger); }
+#cq-ring[data-level="low"] .cq-num { color: var(--cq-danger); }
+#cq-ring[data-compact] .cq-num { display: none; }
+
+#cq-card {
+  position: fixed;
+  z-index: 60;
+  min-width: 220px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 0.5px solid hsl(var(--border-300, 30 3.3% 11.8%) / 0.15);
+  background: hsl(var(--bg-000, 0 0% 100%));
+  color: hsl(var(--text-100, 60 2.6% 7.6%));
+  box-shadow: 0 4px 20px hsl(0 0% 0% / 0.08);
+  font-size: 12.5px;
+  line-height: 1.5;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+#cq-card[data-open] { opacity: 1; transform: none; }
+#cq-card .cq-row { display: flex; justify-content: space-between; gap: 16px; }
+#cq-card .cq-row + .cq-row { margin-top: 8px; }
+#cq-card .cq-label { color: hsl(var(--text-200, 50 2.3% 34%)); }
+#cq-card .cq-value { font-variant-numeric: tabular-nums; }
+#cq-card .cq-sub { color: hsl(var(--text-400, 48 4.8% 59.2%)); font-size: 11.5px; }
+#cq-card .cq-bar { height: 3px; margin-top: 4px; border-radius: 2px; background: hsl(var(--border-300, 30 3.3% 11.8%) / 0.12); overflow: hidden; }
+#cq-card .cq-bar > i { display: block; height: 100%; background: hsl(var(--accent-main-100, 15 55.6% 52.4%)); }
+#cq-card .cq-foot { margin-top: 8px; color: hsl(var(--text-400, 48 4.8% 59.2%)); font-size: 11px; }
