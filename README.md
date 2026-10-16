@@ -76,7 +76,7 @@ console.log(periods.month.total.minutes, periods.month.total.tokens)
 - 桌面时长由同一个 usage-api 进程每 60 秒采样前台应用；锁屏或空闲超过 5 分钟不计。普通 Claude / ChatGPT 桌面对话没有 token 记录；能从会话元数据识别的 Code token 单列，并从终端 CLI 扣除。
 - 只能在这台 Mac 上访问。在线网页（https）也能读，Chrome 会自动做本机访问的预检。
 
-### 个人工作台（公开网站）
+### 月之工作台（公开网站）
 
 公开地址：<https://wzp42406-eng.github.io/ai-workbench/>（谁都能看）。本机也能打开同一个页面：<http://127.0.0.1:8787/>。页面源文件是 [`site/index.html`](site/index.html)，只有两个板块：
 
