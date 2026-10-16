@@ -21,7 +21,6 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 import collect
-import english
 
 DATA_DIR = Path(os.environ.get('AI_USAGE_DIR', Path.home() / 'Library/Application Support/ai-usage'))
 DATA = DATA_DIR / 'usage.json'
@@ -31,8 +30,7 @@ CLI = ('claude_code', 'codex')       # 终端会话记录
 SOURCES = WEB + CLI
 CLI_STATE = DATA_DIR / 'cli_state.json'
 QUOTA = DATA_DIR / 'quota.json'
-ENGLISH = DATA_DIR / 'english.json'
-PAGE = Path(__file__).with_name('workbench.html')
+PAGE = Path(__file__).resolve().parent.parent / 'site' / 'index.html'
 PERIODS = ('day', 'week', 'month', 'year', 'all')
 LOCK = threading.Lock()
 
@@ -257,10 +255,6 @@ class Handler(BaseHTTPRequestHandler):
         got = self.headers.get('Authorization', '')
         return secrets.compare_digest(got, f'Bearer {api_key()}')
 
-    def same_origin(self):
-        """本服务自己提供的工作台页面发来的请求。Sec-Fetch-Site 由浏览器填写，别的网站伪造不了。"""
-        return self.headers.get('Sec-Fetch-Site') == 'same-origin'
-
     def page(self):
         try:
             body = PAGE.read_bytes()
@@ -280,36 +274,15 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(200, {'ok': True})
         if url.path in ('/', '/index.html'):
             return self.page()
-        if url.path not in ('/api/usage', '/api/usage/daily', '/api/english'):
+        if url.path == '/data.json':  # 与公开网站同一份快照，本机打开工作台时用
+            return self.reply(200, public_snapshot())
+        if url.path not in ('/api/usage', '/api/usage/daily'):
             return self.reply(404, {'error': 'not found'})
-        if not (self.authorized() or self.same_origin()):
+        if not self.authorized():
             return self.reply(401, {'error': '需要 Authorization: Bearer <密钥>'})
         if url.path == '/api/usage':
             return self.reply(200, summary())
-        if url.path == '/api/english':
-            with LOCK:
-                return self.reply(200, english.view(english_data()))
         return self.reply(200, daily(parse_qs(url.query)))
-
-    def english_post(self, path, obj):
-        if not (self.authorized() or self.same_origin()):
-            return self.reply(403, {'error': 'forbidden'})
-        with LOCK:
-            data = english_data()
-            try:
-                if path == '/api/english/review':
-                    english.review(data, obj.get('id'), obj.get('grade'))
-                elif path == '/api/english/cards':
-                    english.add(data, str(obj.get('front', '')), str(obj.get('back', '')),
-                                str(obj.get('example', '')), str(obj.get('note', '')))
-                else:
-                    english.remove(data, obj.get('id'))
-            except KeyError:
-                return self.reply(404, {'error': 'no such card'})
-            except ValueError as err:
-                return self.reply(400, {'error': str(err)})
-            save(ENGLISH, data)
-            return self.reply(200, english.view(data))
 
     def body(self):
         n = int(self.headers.get('Content-Length', 0))
@@ -322,11 +295,6 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         path = urlparse(self.path).path
-        if path in ('/api/english/review', '/api/english/cards', '/api/english/delete'):
-            try:
-                return self.english_post(path, self.body())
-            except ValueError:
-                return self.reply(400, {'error': 'bad json'})
         if path not in ('/api/sync', '/api/quota'):
             return self.reply(404, {'error': 'not found'})
         # 写入只接受浏览器扩展（Origin 是 chrome-extension://，网页做不到）或带密钥的本机程序（Claude Code 插件）
@@ -353,12 +321,17 @@ class Handler(BaseHTTPRequestHandler):
         return self.reply(200, {'ok': True, 'days': len(days)})
 
 
-def english_data():
-    data = load(ENGLISH, None)
-    if data is None:
-        data = english.fresh()
-        save(ENGLISH, data)
-    return data
+def public_snapshot(days=60):
+    """公开网站用的数据：只有按天的时长、token 和额度百分比，没有密钥、路径或对话内容。"""
+    s = summary()
+    start = (dt.date.today() - dt.timedelta(days=days - 1)).isoformat()
+    return {
+        'updated_at': s['updated_at'],
+        'note': s['note'],
+        'quota': s['quota'],
+        'periods': s['periods'],
+        'daily': daily({'from': [start]})['days'],
+    }
 
 
 def fmt_min(m):
