@@ -332,10 +332,10 @@ form.add .ex { grid-column: 1 / 3; }
 
   // ================= AI 用量 =================
   const SOURCES = [
-    { id: 'claude_code', name: 'Claude Code', tag: '实际', color: '--s1' },
-    { id: 'codex', name: 'Codex', tag: '实际', color: '--s2' },
-    { id: 'claude', name: 'Claude 网页', tag: '估算', color: '--s3' },
-    { id: 'chatgpt', name: 'ChatGPT 网页', tag: '估算', color: '--s4' },
+    { id: 'claude', name: 'Claude 网页', tag: 'Token 估算', color: '--s3' },
+    { id: 'claude_code', name: 'Claude Code CLI', tag: 'Token 实际', color: '--s1' },
+    { id: 'codex', name: 'Codex CLI', tag: 'Token 实际', color: '--s2' },
+    { id: 'chatgpt', name: 'ChatGPT / Codex 网页', tag: 'Token 估算', color: '--s4' },
   ]
   const PERIODS = [['day', '今日'], ['week', '本周'], ['month', '本月'], ['year', '今年'], ['all', '累计']]
   let period = store.get('wb-period', 'day')
@@ -397,7 +397,9 @@ form.add .ex { grid-column: 1 / 3; }
     }
     $('quota').replaceChildren(card('Claude', q.claude), card('Codex', q.codex))
     $('q-note').textContent = data.updated_at ? `${ago(data.updated_at)}的读数` : ''
-    $('foot').textContent = `数据更新于 ${new Date(data.updated_at).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}，每 12 小时自动更新。终端数据来自 Claude Code / Codex 的会话记录（实际 token）；网页数据来自浏览器扩展（按文字估算）。Token = 未命中缓存的输入 + 写缓存 + 输出。`
+    const local = location.hostname === '127.0.0.1' || location.hostname === 'localhost'
+    const freshness = local ? '本机实时汇总' : '最近一次获准发布的汇总'
+    $('foot').textContent = `数据更新于 ${new Date(data.updated_at).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}，${freshness}。终端数据来自 Claude Code / Codex 的会话记录（Token 实际）；网页数据来自浏览器扩展（Token 估算）。Token = 未命中缓存的输入 + 写缓存 + 输出。`
   }
 
   const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim()

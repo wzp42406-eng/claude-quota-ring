@@ -1,7 +1,7 @@
 {
   "name": "quota-band",
-  "version": "0.4.0",
-  "description": "在 Claude Code 输入框上方用同心圆显示额度：外圈 5 小时、内圈 7 天，并显示 5 小时剩余百分比和今日 Claude Code 使用时长、token",
+  "version": "0.5.0",
+  "description": "在 Claude Code 输入框上方显示 Claude 与 Codex 的额度余量、今日使用时长和 token",
   "author": { "name": "wzp42406-eng" },
   "license": "MIT",
   "types": "./types/index.d.ts"

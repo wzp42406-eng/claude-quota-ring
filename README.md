@@ -7,7 +7,7 @@ Show your remaining Claude usage (5-hour and 7-day windows) right in the Claude 
 | 部分 | 显示位置 | 适用 |
 | --- | --- | --- |
 | [`extension/`](extension) | claude.ai 左下角名字右侧的空白处：同心圆额度环（外圈 5h、内圈 7d），悬停显示详情 | Chrome / Arc / Edge 里的 claude.ai |
-| [`claude-code-mod/`](claude-code-mod) | Claude Code 输入框上方：与网页一致的同心圆（外圈 5h 灰、内圈 7d 红）+ `62%` | Claude Code 终端版与桌面 App 的 Code 页 |
+| [`claude-code-mod/`](claude-code-mod) | Claude Code 输入框上方：Claude 同心圆与 5h 余量 + Codex 额度和两者今日用量 | Claude Code 终端版与桌面 App 的 Code 页 |
 
 ## 浏览器扩展
 
@@ -32,7 +32,7 @@ Show your remaining Claude usage (5-hour and 7-day windows) right in the Claude 
 | 来源 | 字段名 | 数据从哪来 | token |
 | --- | --- | --- | --- |
 | claude.ai 网页 | `claude` | 浏览器扩展 | 估算 |
-| chatgpt.com 网页 | `chatgpt` | 浏览器扩展 | 估算 |
+| ChatGPT / Codex 网页（chatgpt.com） | `chatgpt` | 浏览器扩展 | 估算 |
 | Claude Code（终端和桌面 App 的 Code 页） | `claude_code` | `~/.claude/projects/` 里的会话记录 | 实际值 |
 | Codex（CLI 和桌面） | `codex` | `~/.codex/sessions/` 里的会话记录 | 实际值 |
 
@@ -83,15 +83,15 @@ console.log(periods.month.total.minutes, periods.month.total.tokens)
 - **英语 · 跟读为主**：一句一句练。`空格` 听原音（可慢速、跟着高亮），`R` 开始 / 结束跟读，读完按语音识别结果给每个词打勾或标红并打分，还能回放自己的录音和原音对比；`←` `→` 换句。自带需求访谈、方案演示、回应异议、会后跟进、日常沟通五组材料，也可以粘贴自己的邮件或演讲稿练。每天目标 10 句，记录练习分钟数和连续天数。
 - **生词 · 辅助**：小卡片间隔复习（每天 5 张新卡），可添加、删除。
 
-数据怎么到公开网站：`usage-api/publish.py` 由 launchd 每 12 小时运行一次（`install.sh` 安装，登录时也会跑一次），用本机 `gh` 账号把最新快照 `data.json` 和页面上传到 `wzp42406-eng/ai-workbench` 仓库，GitHub Pages 随即更新。快照只有按天的时长、token 和额度百分比，没有密钥、文件路径或对话内容。手动立刻更新：`python3 usage-api/publish.py`。日志在 `~/Library/Logs/ai-usage-publish.log`。
+数据怎么到公开网站：`usage-api/publish.py` 由 launchd 每 12 小时运行一次（`install.sh` 安装，登录时也会跑一次），用本机 `gh` 账号把最新快照 `data.json` 和页面上传到 `wzp42406-eng/ai-workbench` 仓库，GitHub Pages 随即更新。快照只有按天的时长、token 和额度百分比，没有密钥、文件路径、会话 ID 或对话内容。手动立刻更新：`python3 usage-api/publish.py`。日志在 `~/Library/Logs/ai-usage-publish.log`。
 
 英语的练习记录和生词存在各自浏览器里（每个访客各有一份，不会上传）。语音评分用浏览器自带的语音识别：Chrome / Edge / Safari 支持，Chrome 会把录音发到 Google 识别；不支持的浏览器仍可录音回放。
 
 ## Claude Code 插件（quota-band）
 
-和网页扩展同一种表现：同心圆外圈是 5 小时额度（灰）、内圈是 7 天额度（红），弧长代表剩余量，旁边只显示 5 小时剩余百分比。桌面 App 的 Code 页用矢量圆环；终端用盲文点阵画圆环（占 3 行，空间不够时退化为 `◔ 62%`）。数据来自 Claude Code 自己记录的额度窗口，每次回复后更新。
+和网页扩展同一种表现：同心圆外圈是 5 小时额度（灰）、内圈是 7 天额度（红），弧长代表剩余量，旁边只显示 5 小时剩余百分比。桌面 App 的 Code 页用矢量圆环；终端用盲文点阵画圆环（占 3 行，空间不够时退化为单行文字）。数据来自 Claude Code 自己记录的额度窗口，每次回复后更新。
 
-装了本机用量 API（见上）后，同一行右侧还会显示今天 Claude Code 的使用时长和 token，如 `62%  │  今日 2h33m · 1.0M tokens`（实际值，每次回复后刷新）；插件也会把额度报给 API，工作台就能读到。
+装了本机用量 API（见上）后，同一行会区分显示 Claude 与 Codex，例如 `Claude 33% │ 今日 2h44m · 1.1M ‖ Codex 5h 72% · 周 40% │ 今日 38m · 310k`。Codex 的用量、额度和重置时间都复用 `usage-api/collect.py` 从会话记录采集的结果；5 小时额度超过 5 小时没有新事件时显示 `Codex —`。终端变窄时依次省略重置时间和用量，优先保留余量百分比。插件也会把 Claude 额度报给 API，工作台就能读到。
 
 在 Claude Code 终端里：
 

@@ -217,7 +217,7 @@ def summary():
         'updated_at': now_iso(),
         'sources': {
             'claude': '网页 claude.ai（扩展统计，token 为估算）',
-            'chatgpt': '网页 chatgpt.com（扩展统计，token 为估算）',
+            'chatgpt': 'ChatGPT / Codex 网页 chatgpt.com（扩展统计，token 为估算）',
             'claude_code': 'Claude Code 终端/桌面 Code 页（会话记录，token 为实际值）',
             'codex': 'Codex CLI / 桌面（会话记录，token 为实际值）',
         },

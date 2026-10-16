@@ -1,15 +1,17 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { Limit, Today } from '../types'
+import type { Codex, CodexQuota, Limit, Today } from '../types'
 
 // 与网页扩展一致：同心圆，外圈 5 小时（灰）、内圈 7 天（红），弧长 = 剩余量；文字只显示 5 小时剩余百分比
-// 右侧再显示今天 Claude Code 的使用时长和 token（来自本机用量 API，读的是会话记录里的实际值）
+// 同一行再显示 Claude Code / Codex 的额度与今日用量（本机 API 汇总会话记录里的实际值）
 const limits = atom({ plugin: 'quota-band', key: 'limits' } as const, [] as Limit[])
 const today = atom({ plugin: 'quota-band', key: 'today' } as const, null as Today | null)
+const codex = atom({ plugin: 'quota-band', key: 'codex' } as const, null as Codex | null)
 
 const API = 'http://127.0.0.1:8787'
 const REFETCH_MS = 20_000
+const CODEX_FRESH_MS = 5 * 60 * 60 * 1000
 
 const GRAY = 0x8f8a80
 const RED = 0xd7493c
@@ -101,6 +103,50 @@ export const fmtTime = (minutes: number) => {
 export const fmtTok = (n: number) =>
   n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1000 ? `${(n / 1000).toFixed(n < 1e4 ? 1 : 0)}k` : String(n)
 
+const displayWidth = (s: string) => [...s].reduce((n, ch) => n + (ch.codePointAt(0)! > 0x2e80 ? 2 : 1), 0)
+
+export const quotaIsFresh = (q: CodexQuota | undefined, now: number) => {
+  const seen = Date.parse(q?.observed_at ?? '')
+  const reset = Date.parse(q?.resets_at ?? '')
+  const age = now - seen
+  return Number.isFinite(seen) && age >= -5 * 60 * 1000 && age <= CODEX_FRESH_MS && (!Number.isFinite(reset) || reset > now)
+}
+
+export const fmtReset = (value: string | null | undefined, now: number) => {
+  const match = value?.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/)
+  if (!match) return ''
+  const [, year, month, day, hour, minute] = match
+  const local = new Date(now)
+  const today = `${local.getFullYear()}-${String(local.getMonth() + 1).padStart(2, '0')}-${String(local.getDate()).padStart(2, '0')}`
+  const date = `${year}-${month}-${day}`
+  return date === today ? `${hour}:${minute}` : `${month}/${day} ${hour}:${minute}`
+}
+
+type BandText = { claude: string; codex: string }
+
+// 同一行按可用宽度降级，优先级：5h 主数字 > 周余量 > 今日用量 > 重置时间。
+export function bandText(five: Limit | undefined, claudeToday: Today | null, cx: Codex | null, now: number, columns = Infinity): BandText {
+  const left5 = five ? remaining(five) : null
+  const claudeQuota = left5 === null ? 'Claude —' : `Claude ${left5}%`
+  const claudeUsage = claudeToday ? ` │ 今日 ${fmtTime(claudeToday.minutes)} · ${fmtTok(claudeToday.tokens)}` : ''
+  const fresh5 = quotaIsFresh(cx?.fiveHour, now)
+  const fresh7 = fresh5 && quotaIsFresh(cx?.sevenDay, now)
+  const codexQuota = fresh5 ? `Codex 5h ${Math.round(cx!.fiveHour!.remaining_percent)}%` : 'Codex —'
+  const week = fresh7 ? ` · 周 ${Math.round(cx!.sevenDay!.remaining_percent)}%` : ''
+  const reset5 = fresh5 ? fmtReset(cx?.fiveHour?.resets_at, now) : ''
+  const reset7 = fresh7 ? fmtReset(cx?.sevenDay?.resets_at, now) : ''
+  const codexQuotaWithReset = codexQuota + (reset5 ? ` ↻${reset5}` : '')
+  const weekWithReset = week + (reset7 ? ` ↻${reset7}` : '')
+  const codexUsage = fresh5 && cx?.today ? ` │ 今日 ${fmtTime(cx.today.minutes)} · ${fmtTok(cx.today.tokens)}` : ''
+  const candidates: BandText[] = [
+    { claude: claudeQuota + claudeUsage, codex: codexQuotaWithReset + weekWithReset + codexUsage },
+    { claude: claudeQuota + claudeUsage, codex: codexQuota + week + codexUsage },
+    { claude: claudeQuota, codex: codexQuota + week },
+    { claude: claudeQuota, codex: codexQuota },
+  ]
+  return candidates.find(x => displayWidth(`${x.claude} ‖ ${x.codex}`) <= columns) ?? candidates.at(-1)!
+}
+
 // ---------- 本机用量 API（usage-api/server.py）：没装就什么都不做 ----------
 let apiKey: string | undefined
 let fetchedAt = 0
@@ -117,7 +163,8 @@ async function key($: EngineInterface) {
   return apiKey
 }
 
-// 把额度报给 API（工作台能看到），再取回今天 Claude Code 的时长和 token
+// 把额度报给 API（工作台能看到），再取回 Claude Code / Codex 的今日用量与 Codex 额度。
+// Codex 仍由 usage-api/collect.py 扫会话记录，插件不直接碰 ~/.codex。
 async function syncApi($: EngineInterface, list: readonly Limit[]) {
   const k = await key($)
   if (!k) return
@@ -133,11 +180,26 @@ async function syncApi($: EngineInterface, list: readonly Limit[]) {
     fetchedAt = now
     const r = await $.http.fetch(`${API}/api/usage`, { headers })
     if (!r.ok) return
-    const day = JSON.parse(r.text)?.periods?.day?.claude_code
+    const data = JSON.parse(r.text)
+    const day = data?.periods?.day?.claude_code
     if (day) await update($, today, () => ({ minutes: day.minutes, tokens: day.tokens }))
+    const cx = data?.periods?.day?.codex
+    const quota = data?.quota?.codex
+    if (cx || quota) {
+      await update($, codex, () => ({
+        today: { minutes: cx?.minutes ?? 0, tokens: cx?.tokens ?? 0 },
+        fiveHour: quota?.five_hour,
+        sevenDay: quota?.seven_day,
+      }))
+    }
   } catch {
     /* API 没开或返回不是 JSON */
   }
+}
+
+// 网络刷新放到独立的时钟任务；ui.render 只读 atom，不会拖慢输入框。
+function refresh($: EngineInterface, list: readonly Limit[]) {
+  $.clock.after(1, () => { void syncApi($, list) })
 }
 
 export const register: Register = on => {
@@ -145,44 +207,42 @@ export const register: Register = on => {
     const result = await next(e)
     const list = (await $.session.usage()).rateLimits
     await store($, list)
-    await syncApi($, list)
+    refresh($, list)
     return result
   })
 
   // 每次回复后都会量一次：顺便刷新今天的用量
   on('session.measure', async ($, e, next) => {
     await store($, e.rateLimits)
-    await syncApi($, e.changed.includes('rateLimits') ? e.rateLimits : [])
+    refresh($, e.changed.includes('rateLimits') ? e.rateLimits : [])
     return next(e)
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     const { five, seven } = pick(await read($, limits))
     const used = await read($, today)
-    if (e.props.hasSurvey || (!five && !used)) return next(e)
+    const cx = await read($, codex)
+    if (e.props.hasSurvey || (!five && !used && !cx)) return next(e)
 
     const left5 = remaining(five)
     const left7 = remaining(seven)
-    const label = five ? `${left5}%` : ''
-    const usage = used ? `今日 ${fmtTime(used.minutes)} · ${fmtTok(used.tokens)} tokens` : ''
-    const alt = [five && `5 小时额度剩 ${left5}%`, seven && `7 天额度剩 ${left7}%`, used && `今日 Claude Code 使用 ${usage.slice(3)}`]
+    const now = await $.clock.now()
+    const width = e.surface === 'terminal' ? Math.max(20, e.props.bodyColumns - (five && e.props.maxRows >= RASTER.rows ? RASTER.columns + 2 : 0)) : Infinity
+    const text = bandText(five, used, cx, now, width)
+    const alt = [five && `Claude 5 小时额度剩 ${left5}%`, seven && `Claude 7 天额度剩 ${left7}%`, used && `今日 Claude Code 使用 ${fmtTime(used.minutes)}、${fmtTok(used.tokens)} tokens`, text.codex]
       .filter(Boolean).join('，')
 
     if (e.surface === 'terminal') {
       const { Box, Text, Raster } = $.ui.resolve(e)
       if (!five || e.props.maxRows < RASTER.rows) {
         return (
-          <Box flexDirection="row" gap={2}>
-            {five ? <Text color="gray">◔ {label}</Text> : null}
-            {usage ? <Text dimColor>{usage}</Text> : null}
-          </Box>
+          <Box flexDirection="row"><Text dimColor>{text.claude} ‖ {text.codex}</Text></Box>
         )
       }
       return (
         <Box flexDirection="row" alignItems="center" gap={1}>
           <Raster key="rings" columns={RASTER.columns} rows={RASTER.rows} cells={ringsCells(left5, left7)} />
-          <Text color="gray">{label}</Text>
-          {usage ? <Text dimColor>  │  {usage}</Text> : null}
+          <Text dimColor>{text.claude} ‖ {text.codex}</Text>
         </Box>
       )
     }
@@ -192,8 +252,7 @@ export const register: Register = on => {
       return (
         <Box flexDirection="row" alignItems="center" gap={1}>
           {five ? <Svg key="rings" source={ringsSvg(left5, left7)} alt={alt} width={20} height={20} /> : null}
-          {five ? <Text dimColor>{label}</Text> : null}
-          {usage ? <Text dimColor>{five ? '  ·  ' : ''}{usage}</Text> : null}
+          <Text dimColor>{text.claude} ‖ {text.codex}</Text>
         </Box>
       )
     }

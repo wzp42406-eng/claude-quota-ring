@@ -1,7 +1,7 @@
 import type { RenderElement } from 'claude-code'
 import { expect, mock, test } from 'claude-code/testing'
 
-import { RASTER, pick, remaining, ringsCells, ringsSvg } from '../hooks/register'
+import { RASTER, bandText, fmtReset, pick, quotaIsFresh, remaining, ringsCells, ringsSvg } from '../hooks/register'
 
 const BAND = {
   component: 'AbovePrompt',
@@ -66,10 +66,31 @@ test('band shows rings and only the 5-hour percentage', async ($, on) => {
 
   for (const surface of ['terminal', 'desktop'] as const) {
     const ui = await $.ui.mount({ plugin: 'quota-band', surface, ...BAND })
-    expect(await ui.find({ type: 'Text', text: /^60%$/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /Claude 60%/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /Codex —/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /88%/ })).toBeUndefined()
     expect(await ui.find({ type: surface === 'terminal' ? 'Raster' : 'Svg' })).toBeDefined()
   }
+})
+
+test('Codex formatter keeps quota first, adds resets when space allows, and rejects stale data', async () => {
+  const now = Date.parse('2026-10-16T10:00:00+08:00')
+  const cx = {
+    today: { minutes: 38.8, tokens: 310_000 },
+    fiveHour: { remaining_percent: 72, resets_at: '2026-10-16T12:30:00+08:00', observed_at: '2026-10-16T09:59:00+08:00' },
+    sevenDay: { remaining_percent: 40, resets_at: '2026-10-20T12:30:00+08:00', observed_at: '2026-10-16T09:59:00+08:00' },
+  }
+  const full = bandText({ kind: 'five_hour', percentUsed: 67 }, { minutes: 164, tokens: 1_100_000 }, cx, now)
+  expect(`${full.claude} ‖ ${full.codex}`).toBe('Claude 33% │ 今日 2h44m · 1.1M ‖ Codex 5h 72% ↻12:30 · 周 40% ↻10/20 12:30 │ 今日 38m · 310k')
+  const narrow = bandText({ kind: 'five_hour', percentUsed: 67 }, { minutes: 164, tokens: 1_100_000 }, cx, now, 30)
+  expect(`${narrow.claude} ‖ ${narrow.codex}`).toBe('Claude 33% ‖ Codex 5h 72%')
+  expect(quotaIsFresh(cx.fiveHour, now)).toBe(true)
+  expect(fmtReset(cx.fiveHour.resets_at, now)).toBe('12:30')
+
+  const stale = { ...cx, fiveHour: { ...cx.fiveHour, observed_at: '2026-10-16T04:59:59+08:00' } }
+  expect(bandText(undefined, null, stale, now).codex).toBe('Codex —')
+  const expired = { ...cx, fiveHour: { ...cx.fiveHour, resets_at: '2026-10-16T09:59:59+08:00' } }
+  expect(bandText(undefined, null, expired, now).codex).toBe('Codex —')
 })
 
 test('band adds today\'s Claude Code time and tokens from the local usage API', async ($, on) => {
@@ -78,7 +99,7 @@ test('band adds today\'s Claude Code time and tokens from the local usage API', 
     return h(Box, { key: 'engine' }) as RenderElement
   })
   on('session.measure', (_$, e) => ({ changed: e.changed }))
-  mock.clock(on, { now: Date.parse('2026-10-16T00:00:00Z') })
+  const clock = mock.clock(on, { now: Date.parse('2026-10-16T00:00:00Z') })
   mock.env(on, { HOME: '/Users/test' })
   const calls: string[] = []
   on('fs.read', (_$, e) => {
@@ -88,7 +109,13 @@ test('band adds today\'s Claude Code time and tokens from the local usage API', 
   on('http.fetch', (_$, e) => {
     calls.push(`${e.init?.method ?? 'GET'} ${e.url} ${e.init?.headers?.Authorization}`)
     const text = e.url.endsWith('/api/usage')
-      ? JSON.stringify({ periods: { day: { claude_code: { minutes: 153.4, tokens: 1_020_000 } } } })
+      ? JSON.stringify({
+        periods: { day: { claude_code: { minutes: 153.4, tokens: 1_020_000 }, codex: { minutes: 38.2, tokens: 310_000 } } },
+        quota: { codex: {
+          five_hour: { remaining_percent: 72, resets_at: '2026-10-16T03:00:00Z', observed_at: '2026-10-16T00:00:00Z' },
+          seven_day: { remaining_percent: 40, resets_at: '2026-10-20T03:00:00Z', observed_at: '2026-10-16T00:00:00Z' },
+        } },
+      })
       : '{"ok":true}'
     return { value: { status: 200, ok: true, headers: {}, text } }
   })
@@ -98,6 +125,8 @@ test('band adds today\'s Claude Code time and tokens from the local usage API', 
     rateLimits: [{ kind: 'five_hour', percentUsed: 40 }, { kind: 'seven_day', percentUsed: 12 }],
     changed: ['rateLimits'],
   })
+  expect(calls).toEqual([])
+  await clock.advance(1)
 
   expect(calls).toEqual([
     'POST http://127.0.0.1:8787/api/quota Bearer aiu_test',
@@ -105,7 +134,12 @@ test('band adds today\'s Claude Code time and tokens from the local usage API', 
   ])
   for (const surface of ['terminal', 'desktop'] as const) {
     const ui = await $.ui.mount({ plugin: 'quota-band', surface, ...BAND })
-    expect(await ui.find({ type: 'Text', text: /^60%$/ })).toBeDefined()
-    expect(await ui.find({ type: 'Text', text: /今日 2h33m · 1\.0M tokens/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /Claude 60%/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /Codex 5h 72%/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /周 40%/ })).toBeDefined()
+    if (surface === 'desktop') {
+      expect(await ui.find({ type: 'Text', text: /今日 2h33m · 1\.0M/ })).toBeDefined()
+      expect(await ui.find({ type: 'Text', text: /今日 38m · 310k/ })).toBeDefined()
+    }
   }
 })
