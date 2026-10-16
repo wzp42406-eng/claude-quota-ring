@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Claude 额度环 · AI 用量",
-  "version": "0.10.0",
+  "version": "0.10.1",
   "description": "名字右侧显示 Claude 5 小时额度；名字下方显示 Claude / ChatGPT 使用时长与 token（今日/本周/本月/今年/累计），可同步到本机 API。",
   "permissions": [
     "storage"

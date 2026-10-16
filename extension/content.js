@@ -252,9 +252,33 @@
     const direct = site.accountButton()
     if (direct && direct.offsetWidth > 0) return direct
     const nav = document.querySelector('nav') || document.querySelector('[class*="z-sidebar"]')
-    if (!nav) return null
-    const buttons = [...nav.querySelectorAll('button, a, [role="button"]')].filter(b => b.offsetWidth > 0)
-    return buttons.reverse().find(b => site.plan.test(b.textContent || '')) || null
+    if (nav) {
+      const buttons = [...nav.querySelectorAll('button, a, [role="button"]')].filter(b => b.offsetWidth > 0)
+      const hit = buttons.reverse().find(b => site.plan.test(b.textContent || ''))
+      if (hit) return hit
+    }
+    return byPlanLabel()
+  }
+
+  // 按屏幕上看得到的东西找：左侧栏里单独一个「Plus」「Pro」小标签，往上找到整行
+  // （页面改版、测试 id 变了、头像行不在 <nav> 里时也能找到）
+  const PLAN_ONLY = new RegExp(`^\\s*[·•]?\\s*${site.plan.source}\\s*$`)
+  function byPlanLabel() {
+    let best = null
+    for (const e of document.querySelectorAll('span, div, p')) {
+      if (e.children.length || !PLAN_ONLY.test(e.textContent || '')) continue
+      if (e.closest('#cq-meter, #cq-line, #cq-card')) continue
+      const r = e.getBoundingClientRect()
+      if (!r.width || r.left > 420) continue
+      if (!best || r.top > best.r.top) best = { e, r } // 侧栏底部那个
+    }
+    if (!best) return null
+    for (let a = best.e.parentElement, i = 0; a && a !== document.body && i < 8; a = a.parentElement, i++) {
+      if (a.matches('button, a, [role="button"], [data-testid]')) return a
+      const r = a.getBoundingClientRect()
+      if (r.width >= 150 && r.height <= 90 && a.querySelector('img, svg, [class*="avatar" i]')) return a
+    }
+    return null
   }
 
   // ======================================================================
@@ -526,9 +550,16 @@
   let observed = null
   const resize = new ResizeObserver(() => follow())
 
+  let warned = false
   function render() {
     const button = findAccountButton()
-    if (!button) return
+    if (!button) {
+      if (!warned && document.readyState === 'complete') {
+        warned = true
+        console.info('[额度环] 没找到左下角的头像行，暂不显示。请把头像行「检查」截图反馈。')
+      }
+      return
+    }
 
     let meter = document.getElementById('cq-meter')
     if (!meter) {
