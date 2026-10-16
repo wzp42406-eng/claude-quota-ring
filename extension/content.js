@@ -300,7 +300,7 @@
       try { localStorage.setItem('cq-period', period) } catch { /* 无痕等 */ }
       render()
     })
-    line.append(el('span', 'cq-label'), el('span', 'cq-time'), el('span', 'cq-dot', '·'), el('span', 'cq-tok'))
+    line.append(el('span', 'cq-label'), el('span', 'cq-time'), el('span', 'cq-dot', '·'), el('span', 'cq-tok'), el('span', 'cq-unit', 'tokens'))
     line.addEventListener('mouseenter', openCard)
     line.addEventListener('mouseleave', closeCard)
     return line
@@ -448,7 +448,9 @@
     const button = findAccountButton()
     if (!meter || !line || !button) return
     const b = button.getBoundingClientRect()
-    if (b.width < 120 || b.height === 0) { meter.hidden = line.hidden = true; return }
+    // 头像行在屏幕外（侧栏收起或正在滑入）时先藏起来，免得叠在别的东西上
+    const offscreen = b.right <= 0 || b.left < -1 || b.left >= window.innerWidth
+    if (b.width < 120 || b.height === 0 || offscreen) { meter.hidden = line.hidden = true; return }
     placeLine(line, button)
     meter.hidden = meter.querySelector('.cq-quota').hidden
     if (meter.hidden) return
@@ -466,6 +468,7 @@
     delete meter.dataset.compact
     if (x + meter.offsetWidth > limit) meter.dataset.compact = ''
     if (x + meter.offsetWidth > limit) { meter.hidden = true; return }
+    if (x + meter.offsetWidth > b.right + 200) { meter.hidden = true; return } // 防止算出离谱位置
 
     meter.style.left = `${Math.round(x)}px`
     meter.style.top = `${Math.round(b.top + b.height / 2 - meter.offsetHeight / 2)}px`
@@ -476,12 +479,18 @@
     const t = textBox(button)
     if (!isFinite(t.left)) { line.hidden = true; return }
     line.hidden = false
+    // 太窄放不下整行时不显示，避免压到右侧图标
+    // 放不下时先去掉「今日」和「tokens」字样，还放不下就不显示，避免压到右侧图标
+    const limit = rightLimit(button, t.left) + 8
+    delete line.dataset.compact
+    if (t.left + line.offsetWidth > limit) line.dataset.compact = ''
+    if (t.left + line.offsetWidth > limit) { line.hidden = true; return }
     line.style.left = `${Math.round(t.left)}px`
     line.style.top = `${Math.round(t.bottom + 1)}px`
   }
 
   let observed = null
-  const resize = new ResizeObserver(() => place())
+  const resize = new ResizeObserver(() => follow())
 
   function render() {
     const button = findAccountButton()
@@ -521,7 +530,7 @@
     const mine = sumPeriod(SITE, period)
     line.querySelector('.cq-label').textContent = label
     line.querySelector('.cq-time').textContent = fmtTime(mine.ms)
-    line.querySelector('.cq-tok').textContent = `${fmtTok(mine.tok)} tokens`
+    line.querySelector('.cq-tok').textContent = fmtTok(mine.tok)
     line.setAttribute('aria-label', `${label} ${SITE_NAME[SITE]} 使用 ${fmtTime(mine.ms)}，约 ${fmtTok(mine.tok)} token，点击切换区间`)
 
     const parts = list.map(w => `${LABELS[w.kind]}剩 ${left(w.used)}%`)
@@ -541,7 +550,7 @@
     requestAnimationFrame(() => {
       scheduled = false
       if (observed !== findAccountButton()) render()
-      else place()
+      else follow()
     })
   }).observe(document.body, { childList: true, subtree: true })
 
@@ -550,9 +559,36 @@
     window.addEventListener(t, touch, { capture: true, passive: true })
   }
 
-  window.addEventListener('resize', place)
-  document.addEventListener('scroll', place, true)
-  document.addEventListener('transitionend', place, true)
+  // 侧栏拖宽、收起展开、滑入动画（transform 动画不会触发 ResizeObserver）：
+  // 发现头像行位置或文字宽度变了，就逐帧跟着重新对齐，直到连续几帧不再变化
+  function signature() {
+    const button = findAccountButton()
+    if (!button) return ''
+    const b = button.getBoundingClientRect()
+    return [b.left, b.top, b.width, b.height, contentRight(button), window.innerWidth].map(Math.round).join(',')
+  }
+
+  let lastSig = ''
+  let following = false
+
+  function follow() {
+    if (following) return
+    following = true
+    let stable = 0
+    const step = () => {
+      const sig = signature()
+      if (sig !== lastSig) { lastSig = sig; stable = 0; place() } else stable++
+      if (stable < 8) requestAnimationFrame(step)
+      else following = false
+    }
+    requestAnimationFrame(step)
+  }
+
+  setInterval(() => { if (!document.hidden && signature() !== lastSig) follow() }, 250)
+  for (const t of ['resize']) window.addEventListener(t, follow)
+  for (const t of ['scroll', 'transitionrun', 'transitionend', 'animationstart', 'animationend', 'pointerup']) {
+    document.addEventListener(t, follow, { capture: true, passive: true })
+  }
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) { flush(); return }
     lastTick = Date.now()

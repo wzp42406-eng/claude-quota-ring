@@ -68,6 +68,9 @@
 }
 #cq-line[hidden] { display: none; }
 #cq-line .cq-label, #cq-line .cq-dot { opacity: 0.75; }
+#cq-line .cq-unit { margin-left: -1px; }
+#cq-line[data-compact] .cq-label,
+#cq-line[data-compact] .cq-unit { display: none; }
 
 #cq-line:hover { color: hsl(var(--text-200, 50 2.3% 34%)); }
 html[data-cq-site="chatgpt"] #cq-line:hover { color: var(--text-primary, #0d0d0d); }
