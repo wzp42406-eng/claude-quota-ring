@@ -62,13 +62,13 @@
   color: var(--cq-gray);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
-  cursor: default;
+  cursor: pointer;
+  user-select: none;
   animation: cq-in 260ms ease both;
 }
 #cq-line[hidden] { display: none; }
 #cq-line .cq-label, #cq-line .cq-dot { opacity: 0.75; }
-#cq-line .cq-five { margin-right: 4px; padding-right: 7px; border-right: 1px solid var(--cq-hair); }
-#cq-line .cq-five[hidden] { display: none; }
+
 #cq-line:hover { color: hsl(var(--text-200, 50 2.3% 34%)); }
 html[data-cq-site="chatgpt"] #cq-line:hover { color: var(--text-primary, #0d0d0d); }
 
@@ -142,3 +142,4 @@ html[data-cq-site="chatgpt"] #cq-card .cq-foot { color: var(--text-tertiary, #8f
 html[data-cq-site="chatgpt"] #cq-card .cq-sep,
 html[data-cq-site="chatgpt"] #cq-card .cq-total { border-color: var(--border-light, rgba(127, 127, 127, 0.2)); }
 html[data-cq-site="chatgpt"] #cq-card .cq-sep { background: var(--border-light, rgba(127, 127, 127, 0.2)); }
+#cq-card .cq-gap { margin-top: 10px; }

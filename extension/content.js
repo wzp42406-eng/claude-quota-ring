@@ -105,7 +105,7 @@
     return Math.round(cjk + Math.max(0, rest) / 4)
   }
 
-  let stored = {}            // 近 7 天：{ 'YYYY-MM-DD': { claude: {ms,tok}, chatgpt: {ms,tok} } }
+  let stored = {}            // 全部按天记录：{ 'YYYY-MM-DD': { claude: {ms,tok}, chatgpt: {ms,tok} } }
   let pending = { ms: 0, tok: 0, day: dayKey() }
   let lastInput = Date.now()
   let lastTick = Date.now()
@@ -163,12 +163,10 @@
 
   async function loadStored() {
     if (!alive()) return
-    const keys = []
-    for (let i = 0; i < 7; i++) keys.push(`u:${dayKey(Date.now() - i * 864e5)}`)
     try {
-      const got = await chrome.storage.local.get(keys)
+      const got = await chrome.storage.local.get(null)
       stored = {}
-      for (const [k, v] of Object.entries(got)) stored[k.slice(2)] = v
+      for (const [k, v] of Object.entries(got)) if (k.startsWith('u:')) stored[k.slice(2)] = v
     } catch { /* 扩展已重载 */ }
   }
 
@@ -179,19 +177,47 @@
     return { ms: s.ms, tok: s.tok }
   }
 
-  function sumDays(which, days) {
+  // 统计区间：周从周一算起
+  const PERIODS = [
+    { id: 'day', label: '今日' },
+    { id: 'week', label: '本周' },
+    { id: 'month', label: '本月' },
+    { id: 'year', label: '今年' },
+    { id: 'all', label: '累计' },
+  ]
+
+  function periodStart(id) {
+    const d = new Date()
+    if (id === 'day') return dayKey()
+    if (id === 'week') return dayKey(d.getTime() - ((d.getDay() + 6) % 7) * 864e5)
+    if (id === 'month') return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-01`
+    if (id === 'year') return `${d.getFullYear()}-01-01`
+    return ''
+  }
+
+  function sumPeriod(which, id) {
+    const from = periodStart(id)
     let ms = 0, tok = 0
-    for (let i = 0; i < days; i++) {
-      const s = statsFor(dayKey(Date.now() - i * 864e5), which)
+    const days = new Set(Object.keys(stored))
+    if (which === SITE) days.add(pending.day)
+    for (const day of days) {
+      if (day < from) continue
+      const s = statsFor(day, which)
       ms += s.ms; tok += s.tok
     }
     return { ms, tok }
   }
 
+  // 用量行显示哪个区间：点一下切换，记在本页
+  let period = 'day'
+  try { if (PERIODS.some(p => p.id === localStorage.getItem('cq-period'))) period = localStorage.getItem('cq-period') } catch { /* 无痕等 */ }
+
   function fmtTime(ms) {
     const m = Math.floor(ms / 60000)
     if (m < 60) return `${m}m`
-    return `${Math.floor(m / 60)}h${pad(m % 60)}m`
+    const h = Math.floor(m / 60)
+    if (h >= 100) return `${h}h`
+    return `${h}h${pad(m % 60)}m`
   }
 
   function fmtTok(n) {
@@ -261,14 +287,20 @@
     return meter
   }
 
-  // 名字下方一行：今日 1h12m · 4.0k tokens
+  // 名字下方一行：今日 1h12m · 4.0k tokens；点一下切换 本周/本月/今年/累计
   function buildLine() {
     const line = el('div')
     line.id = 'cq-line'
-    line.setAttribute('role', 'status')
-    const five = el('span', 'cq-five')
-    five.hidden = true
-    line.append(five, el('span', 'cq-label', '今日'), el('span', 'cq-time'), el('span', 'cq-dot', '·'), el('span', 'cq-tok'))
+    line.setAttribute('role', 'button')
+    line.title = '点击切换：今日 / 本周 / 本月 / 今年 / 累计'
+    line.addEventListener('click', ev => {
+      ev.stopPropagation()
+      const i = PERIODS.findIndex(p => p.id === period)
+      period = PERIODS[(i + 1) % PERIODS.length].id
+      try { localStorage.setItem('cq-period', period) } catch { /* 无痕等 */ }
+      render()
+    })
+    line.append(el('span', 'cq-label'), el('span', 'cq-time'), el('span', 'cq-dot', '·'), el('span', 'cq-tok'))
     line.addEventListener('mouseenter', openCard)
     line.addEventListener('mouseleave', closeCard)
     return line
@@ -284,23 +316,34 @@
     return c
   }
 
+  const both = id => {
+    const a = sumPeriod('claude', id), b = sumPeriod('chatgpt', id)
+    return { claude: a, chatgpt: b, total: { ms: a.ms + b.ms, tok: a.tok + b.tok } }
+  }
+
+  // 当前区间：Claude / ChatGPT / 合计；下面是各区间的合计
   function statsTable() {
-    const today = dayKey()
+    const label = PERIODS.find(p => p.id === period).label
+    const cur = both(period)
     const t = el('div', 'cq-table')
     const head = el('div', 'cq-tr cq-th')
-    head.append(el('span', null, '今日'), el('span', null, '时长'), el('span', null, 'Token'))
+    head.append(el('span', null, label), el('span', null, '时长'), el('span', null, 'Token'))
     t.appendChild(head)
-    const rows = ['claude', 'chatgpt'].map(w => ({ name: SITE_NAME[w], here: w === SITE, ...statsFor(today, w) }))
-    rows.push({ name: '合计', total: true, ms: rows[0].ms + rows[1].ms, tok: rows[0].tok + rows[1].tok })
-    for (const r of rows) {
-      const tr = el('div', `cq-tr${r.total ? ' cq-total' : ''}${r.here ? ' cq-here' : ''}`)
-      tr.append(el('span', null, r.name), el('span', null, fmtTime(r.ms)), el('span', null, fmtTok(r.tok)))
+    for (const w of ['claude', 'chatgpt', 'total']) {
+      const tr = el('div', `cq-tr${w === 'total' ? ' cq-total' : ''}${w === SITE ? ' cq-here' : ''}`)
+      tr.append(el('span', null, SITE_NAME[w] || '合计'), el('span', null, fmtTime(cur[w].ms)), el('span', null, fmtTok(cur[w].tok)))
       t.appendChild(tr)
     }
-    const a = sumDays('claude', 7), b = sumDays('chatgpt', 7)
-    const week = el('div', 'cq-tr cq-week')
-    week.append(el('span', null, '近 7 天合计'), el('span', null, fmtTime(a.ms + b.ms)), el('span', null, fmtTok(a.tok + b.tok)))
-    t.appendChild(week)
+    const sub = el('div', 'cq-tr cq-th cq-gap')
+    sub.append(el('span', null, '两者合计'), el('span'), el('span'))
+    t.appendChild(sub)
+    for (const p of PERIODS) {
+      if (p.id === period) continue
+      const s = both(p.id).total
+      const tr = el('div', 'cq-tr cq-week')
+      tr.append(el('span', null, p.label), el('span', null, fmtTime(s.ms)), el('span', null, fmtTok(s.tok)))
+      t.appendChild(tr)
+    }
     return t
   }
 
@@ -327,7 +370,7 @@
       c.appendChild(el('div', 'cq-sep'))
     }
     c.appendChild(statsTable())
-    c.appendChild(el('div', 'cq-foot', '时长：页面在前台且 3 分钟内有操作才计。Token：按对话文字估算，不含系统提示和每轮重复发送的上下文。'))
+    c.appendChild(el('div', 'cq-foot', '点下方用量行切换区间。时长：页面在前台且 3 分钟内有操作才计。Token：按对话文字估算，不含系统提示和每轮重复发送的上下文。'))
   }
 
   function openCard(ev) {
@@ -407,8 +450,6 @@
     const b = button.getBoundingClientRect()
     if (b.width < 120 || b.height === 0) { meter.hidden = line.hidden = true; return }
     placeLine(line, button)
-    const five = line.querySelector('.cq-five')
-    five.hidden = true
     meter.hidden = meter.querySelector('.cq-quota').hidden
     if (meter.hidden) return
 
@@ -421,12 +462,9 @@
 
     const x = contentRight(button) + 10
     const limit = rightLimit(button, x)
-    // 圆环旁放不下 5 小时百分比时，把它挪到下方用量行的开头
+    // 放不下百分比时只留圆环（额度和用量分开两行，不混在一起）
     delete meter.dataset.compact
-    if (x + meter.offsetWidth > limit) {
-      meter.dataset.compact = ''
-      five.hidden = !meter.querySelector('.cq-num').textContent
-    }
+    if (x + meter.offsetWidth > limit) meter.dataset.compact = ''
     if (x + meter.offsetWidth > limit) { meter.hidden = true; return }
 
     meter.style.left = `${Math.round(x)}px`
@@ -478,12 +516,13 @@
     const num = meter.querySelector('.cq-num')
     num.hidden = !five
     num.textContent = five ? `${left(five.used)}%` : ''
-    line.querySelector('.cq-five').textContent = five ? `5h ${left(five.used)}%` : ''
 
-    const mine = statsFor(dayKey(), SITE)
+    const label = PERIODS.find(p => p.id === period).label
+    const mine = sumPeriod(SITE, period)
+    line.querySelector('.cq-label').textContent = label
     line.querySelector('.cq-time').textContent = fmtTime(mine.ms)
     line.querySelector('.cq-tok').textContent = `${fmtTok(mine.tok)} tokens`
-    line.setAttribute('aria-label', `今日 ${SITE_NAME[SITE]} 使用 ${fmtTime(mine.ms)}，约 ${fmtTok(mine.tok)} token`)
+    line.setAttribute('aria-label', `${label} ${SITE_NAME[SITE]} 使用 ${fmtTime(mine.ms)}，约 ${fmtTok(mine.tok)} token，点击切换区间`)
 
     const parts = list.map(w => `${LABELS[w.kind]}剩 ${left(w.used)}%`)
     meter.setAttribute('aria-label', parts.join('，'))

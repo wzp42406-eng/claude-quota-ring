@@ -16,19 +16,48 @@ Show your remaining Claude usage (5-hour and 7-day windows) right in the Claude 
 - 颜色和字体沿用 claude.ai 自己的 CSS 变量，跟随浅色和深色主题；空间不够时只保留圆环。
 - 只请求 claude.ai 自己的 `/api/organizations` 和 `/api/organizations/<id>/usage`，每 2 分钟刷新一次。不收集、不上传任何数据。
 
-### AI 用量统计（v0.6.0 起，v0.7.0 改到名字下方）
+### AI 用量统计（v0.8.0）
 
-- 名字下方一行小字显示**今天在当前网站的使用时长和 token**（如 `今日 1h12m · 4.0k tokens`）：在 claude.ai 显示 Claude 的，在 chatgpt.com 显示 ChatGPT 的。圆环旁放不下 5 小时百分比时，百分比会挪到这一行开头。
-- 悬停卡片里有 Claude、ChatGPT 各自的今日时长 / token、两者**合计**，以及近 7 天合计。
+- **名字右侧**：只放额度圆环和 5 小时剩余百分比。
+- **名字下方一行**：当前网站的使用时长和 token，如 `今日 1h12m · 4.0k tokens`。在 claude.ai 显示 Claude 的，在 chatgpt.com 显示 ChatGPT 的。**点一下这一行**可以在 今日 → 本周 → 本月 → 今年 → 累计 之间切换，浏览器会记住你选的区间。
+- **悬停卡片**：当前区间里 Claude、ChatGPT 各自的数字和合计，下面是其他区间的两者合计。
+- 数据按天永久保存在本机扩展存储里，不会每天清零。周从周一算起。
 - 时长：页面在前台、窗口有焦点，并且 3 分钟内有操作（或正在生成回复）才计时。
 - Token：只统计在页面上实时发出和生成的消息（打开历史对话不会重复计），按文字估算：中日韩字符约 1 字 1 token，其他约 4 字符 1 token。**这是估算**，不含系统提示、联网/文件内容和每轮重复发送的上下文，比官方计费的 token 少。
-- 数据只存在本机的扩展存储里（`chrome.storage.local`，保留 90 天），不上传。
 
-安装：
-1. 下载本仓库（Code → Download ZIP 并解压，或 `git clone`）
-2. 打开 `chrome://extensions`，开启「开发者模式」
-3. 点「加载已解压的扩展程序」，选择 `extension` 文件夹
-4. 刷新 claude.ai
+### 本机用量 API（给个人工作台用）
+
+[`usage-api/`](usage-api) 是一个只监听 `127.0.0.1:8787` 的小服务（只用 Python 标准库）。扩展会把用量同步过去；没装这个服务时扩展照常工作。
+
+安装成开机自动运行，并显示你的专属密钥：
+
+```bash
+bash usage-api/install.sh
+```
+
+以后需要再看密钥时运行 `python3 usage-api/server.py --key`；`--new-key` 会换一个新密钥，旧的立即失效。卸载服务：`bash usage-api/install.sh --uninstall`（数据会保留）。
+
+接口（都要带 `Authorization: Bearer <密钥>`）：
+
+| 接口 | 返回 |
+| --- | --- |
+| `GET /api/usage` | `periods.day / week / month / year / all`，每项含 `claude`、`chatgpt`、`total` 的 `minutes` 和 `tokens` |
+| `GET /api/usage/daily?from=2026-10-01&to=2026-10-31` | 按天明细 |
+| `GET /health` | 不需要密钥，检查服务是否在运行 |
+
+在工作台网页里调用：
+
+```js
+const r = await fetch('http://127.0.0.1:8787/api/usage', {
+  headers: { Authorization: 'Bearer <你的密钥>' },
+})
+const { periods } = await r.json()
+console.log(periods.month.total.minutes, periods.month.total.tokens)
+```
+
+- 数据文件在 `~/Library/Application Support/ai-usage/usage.json`。
+- 只有浏览器扩展能写入；同步时按天取较大值，所以重装扩展、清空扩展存储也不会冲掉已有记录。
+- 只能在这台 Mac 上访问。在线网页（https）也能读，Chrome 会自动做本机访问的预检。
 
 ## Claude Code 插件（quota-band）
 

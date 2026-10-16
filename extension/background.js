@@ -1,6 +1,9 @@
 // 用量统计的唯一写入方：各页面把增量发过来，这里串行累加，避免多个标签页同时写丢数据。
 // 存储结构：chrome.storage.local 键 `u:YYYY-MM-DD` → { claude: { ms, tok }, chatgpt: { ms, tok } }
-const KEEP_DAYS = 90
+// 按天永久保存（每天约 100 字节），周/月/年/累计都由这些按天记录相加得到。
+// 另外把全部记录同步给本机的用量 API（usage-api/server.py），没运行就静默跳过。
+const API = 'http://127.0.0.1:8787/api/sync'
+const SYNC_DELAY_MS = 5000
 
 let queue = Promise.resolve()
 
@@ -15,20 +18,34 @@ function add({ day, site, ms = 0, tok = 0 }) {
   return queue
 }
 
-async function prune() {
-  const all = await chrome.storage.local.get(null)
-  const d = new Date(Date.now() - KEEP_DAYS * 864e5)
-  const cutoff = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-  const old = Object.keys(all).filter(k => k.startsWith('u:') && k.slice(2) < cutoff)
-  if (old.length) await chrome.storage.local.remove(old)
+let syncTimer = null
+
+function scheduleSync() {
+  clearTimeout(syncTimer)
+  syncTimer = setTimeout(sync, SYNC_DELAY_MS)
+}
+
+async function sync() {
+  try {
+    const all = await chrome.storage.local.get(null)
+    const days = {}
+    for (const [k, v] of Object.entries(all)) if (k.startsWith('u:')) days[k.slice(2)] = v
+    await fetch(API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ days }),
+    })
+  } catch {
+    /* 本机 API 没开：下次再试 */
+  }
 }
 
 chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
   if (msg && msg.type === 'usage' && (msg.site === 'claude' || msg.site === 'chatgpt')) {
-    add(msg).then(() => reply(true))
+    add(msg).then(() => { scheduleSync(); reply(true) })
     return true
   }
 })
 
-chrome.runtime.onInstalled.addListener(prune)
-chrome.runtime.onStartup.addListener(prune)
+chrome.runtime.onInstalled.addListener(sync)
+chrome.runtime.onStartup.addListener(sync)
