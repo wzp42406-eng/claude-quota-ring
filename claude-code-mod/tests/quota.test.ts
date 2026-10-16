@@ -16,7 +16,7 @@ test('countdown formats days, hours and minutes', async () => {
   expect(untilReset(undefined, now)).toBe('')
 })
 
-test('describe turns used into remaining', async () => {
+test('describe shows only the 5-hour window', async () => {
   const now = Date.parse('2026-10-16T00:00:00Z')
   const text = describe(
     [
@@ -25,7 +25,8 @@ test('describe turns used into remaining', async () => {
     ],
     now,
   )
-  expect(text).toBe('5小时 剩 62.5%（2时0分后重置） · 7天 剩 88%')
+  expect(text).toBe('5小时额度 剩 63%（2时0分后重置）')
+  expect(describe([{ kind: 'seven_day', percentUsed: 12 }], now)).toBe('')
 })
 
 test('band appears after a rate-limit measurement on every surface', async ($, on) => {
@@ -38,17 +39,18 @@ test('band appears after a rate-limit measurement on every surface', async ($, o
 
   for (const surface of ['terminal', 'desktop'] as const) {
     const empty = await $.ui.mount({ plugin: 'quota-band', surface, ...BAND })
-    expect(await empty.find({ type: 'Text', text: /额度/ })).toBeUndefined()
+    expect(await empty.find({ type: 'Text', text: /5小时额度/ })).toBeUndefined()
   }
 
   await $.session.measure({
     context: { window: 200000 },
-    rateLimits: [{ kind: 'five_hour', percentUsed: 40 }],
+    rateLimits: [{ kind: 'five_hour', percentUsed: 40 }, { kind: 'seven_day', percentUsed: 12 }],
     changed: ['rateLimits'],
   })
 
   for (const surface of ['terminal', 'desktop'] as const) {
     const ui = await $.ui.mount({ plugin: 'quota-band', surface, ...BAND })
-    expect(await ui.find({ type: 'Text', text: /5小时 剩 60%/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /5小时额度 剩 60%/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /7天|88%/ })).toBeUndefined()
   }
 })

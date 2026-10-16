@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Claude 额度环",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "在 claude.ai 左下角名字右侧，用同心圆显示 5 小时 / 7 天额度剩余。",
   "host_permissions": ["https://claude.ai/*"],
   "content_scripts": [

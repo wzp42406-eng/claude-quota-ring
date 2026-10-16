@@ -7,11 +7,11 @@ Show your remaining Claude usage (5-hour and 7-day windows) right in the Claude 
 | 部分 | 显示位置 | 适用 |
 | --- | --- | --- |
 | [`extension/`](extension) | claude.ai 左下角名字右侧的空白处：同心圆额度环（外圈 5h、内圈 7d），悬停显示详情 | Chrome / Arc / Edge 里的 claude.ai |
-| [`claude-code-mod/`](claude-code-mod) | Claude Code 输入框上方一行：`5小时 剩 62%（3时12分后重置） · 7天 剩 88%` | Claude Code 终端版与桌面 App 的 Code 页 |
+| [`claude-code-mod/`](claude-code-mod) | Claude Code 输入框上方一行：`5小时额度 剩 62%（3时12分后重置）` | Claude Code 终端版与桌面 App 的 Code 页 |
 
 ## 浏览器扩展
 
-- 名字右侧显示一组同心圆：**外圈是 5 小时额度**（灰色，取 Claude 的中性灰），**内圈是 7 天额度**（红色），弧长代表剩余量；右侧一行百分比（灰色 5h、红色 7d）沿用「Pro」的字号，与名字同一行、垂直居中。
+- 名字右侧显示一组同心圆：**外圈是 5 小时额度**（灰色，取 Claude 的中性灰），**内圈是 7 天额度**（红色），弧长代表剩余量；右侧只显示 5 小时剩余百分比（沿用「Pro」的字号，与名字同一行、垂直居中）；7 天余量只用内圈表示，不显示数字。
 - 鼠标悬停弹出卡片，显示两个窗口的剩余量和重置时间。
 - 颜色和字体沿用 claude.ai 自己的 CSS 变量，跟随浅色和深色主题；空间不够时只保留圆环。
 - 只请求 claude.ai 自己的 `/api/organizations` 和 `/api/organizations/<id>/usage`，每 2 分钟刷新一次。不收集、不上传任何数据。
@@ -24,7 +24,7 @@ Show your remaining Claude usage (5-hour and 7-day windows) right in the Claude 
 
 ## Claude Code 插件（quota-band）
 
-数据来自 Claude Code 自己记录的额度窗口（每次回复后更新），用量 ≥80% 变黄，≥90% 变红。
+只显示 5 小时额度的剩余百分比和重置时间，数据来自 Claude Code 自己记录的额度窗口（每次回复后更新）；用量 ≥80% 变黄，≥90% 变红。
 
 在 Claude Code 终端里：
 

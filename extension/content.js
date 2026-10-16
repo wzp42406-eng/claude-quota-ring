@@ -101,10 +101,10 @@
       arc.setAttribute('stroke-dasharray', String(CIRC(r)))
       arc.setAttribute('stroke-dashoffset', String(CIRC(r)))
       svg.append(track, arc)
-      const n = el('span', 'cq-num')
-      n.dataset.kind = kind
-      nums.appendChild(n)
     }
+    const n = el('span', 'cq-num') // 只显示 5 小时剩余；7 天只用内圈表示
+    n.dataset.kind = 'five_hour'
+    nums.appendChild(n)
     meter.append(svg, nums)
     meter.addEventListener('mouseenter', openCard)
     meter.addEventListener('mouseleave', closeCard)
@@ -244,10 +244,11 @@
       const pct = w ? left(w.used) : 0
       meter.querySelector(`.cq-arc[data-kind="${kind}"]`)
         .setAttribute('stroke-dashoffset', String(CIRC(r) * (1 - pct / 100)))
-      const num = meter.querySelector(`.cq-num[data-kind="${kind}"]`)
-      num.hidden = !w
-      num.textContent = w ? `${pct}%` : ''
     }
+    const five = list.find(x => x.kind === 'five_hour')
+    const num = meter.querySelector('.cq-num')
+    num.hidden = !five
+    num.textContent = five ? `${left(five.used)}%` : ''
     meter.setAttribute('aria-label', list.map(w => `${LABELS[w.kind]}剩 ${left(w.used)}%`).join('，'))
     place()
     if (document.getElementById('cq-card')?.hasAttribute('data-open')) fillCard()

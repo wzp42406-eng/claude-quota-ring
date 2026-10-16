@@ -5,8 +5,6 @@ import type { Limit } from '../types'
 
 const limits = atom({ plugin: 'quota-band', key: 'limits' } as const, [] as Limit[])
 
-const LABELS: Record<string, string> = { five_hour: '5小时', seven_day: '7天', spend_limit: '消费' }
-
 export const untilReset = (resetsAt: string | undefined, now: number) => {
   if (!resetsAt) return ''
   const minutes = Math.max(0, Math.round((Date.parse(resetsAt) - now) / 60000))
@@ -15,14 +13,14 @@ export const untilReset = (resetsAt: string | undefined, now: number) => {
   return `${minutes}分后重置`
 }
 
-export const describe = (list: Limit[], now: number) =>
-  list
-    .map(l => {
-      const left = Math.max(0, Math.round((100 - l.percentUsed) * 10) / 10)
-      const reset = untilReset(l.resetsAt, now)
-      return `${LABELS[l.kind] ?? l.kind} 剩 ${left}%${reset ? `（${reset}）` : ''}`
-    })
-    .join(' · ')
+// 只显示 5 小时额度；7 天额度不在这一行显示
+export const describe = (list: readonly Limit[], now: number) => {
+  const five = list.find(l => l.kind === 'five_hour')
+  if (!five) return ''
+  const left = Math.max(0, Math.round(100 - five.percentUsed))
+  const reset = untilReset(five.resetsAt, now)
+  return `5小时额度 剩 ${left}%${reset ? `（${reset}）` : ''}`
+}
 
 async function store($: EngineInterface, list: readonly Limit[]) {
   if (list.length === 0) return
@@ -43,15 +41,16 @@ export const register: Register = on => {
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     const list = await read($, limits)
-    if (e.props.hasSurvey || list.length === 0) return next(e)
+    const five = list.find(l => l.kind === 'five_hour')
+    if (e.props.hasSurvey || !five) return next(e)
 
     const { Box, Text } = $.ui.resolve(e)
-    const worst = Math.max(...list.map(l => l.percentUsed))
+    const used = five.percentUsed
 
     return (
       <Box>
-        <Text dimColor={worst < 80} color={worst >= 90 ? 'red' : worst >= 80 ? 'yellow' : undefined}>
-          额度 {describe(list, await $.clock.now())}
+        <Text dimColor={used < 80} color={used >= 90 ? 'red' : used >= 80 ? 'yellow' : undefined}>
+          {describe(list, await $.clock.now())}
         </Text>
       </Box>
     )
