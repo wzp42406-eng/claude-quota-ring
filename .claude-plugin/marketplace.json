@@ -1,5 +1,5 @@
 {
   "name": "claude-quota-ring",
   "owner": { "name": "wzp42406-eng" },
-  "plugins": [{ "name": "quota-band", "source": "./claude-code-mod", "description": "在 Claude Code 输入框上方显示 5 小时额度剩余百分比" }]
+  "plugins": [{ "name": "quota-band", "source": "./claude-code-mod", "description": "在 Claude Code 输入框上方用同心圆显示额度，与网页扩展一致" }]
 }

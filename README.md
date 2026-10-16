@@ -7,7 +7,7 @@ Show your remaining Claude usage (5-hour and 7-day windows) right in the Claude 
 | 部分 | 显示位置 | 适用 |
 | --- | --- | --- |
 | [`extension/`](extension) | claude.ai 左下角名字右侧的空白处：同心圆额度环（外圈 5h、内圈 7d），悬停显示详情 | Chrome / Arc / Edge 里的 claude.ai |
-| [`claude-code-mod/`](claude-code-mod) | Claude Code 输入框上方一行：`5小时额度 剩 62%（3时12分后重置）` | Claude Code 终端版与桌面 App 的 Code 页 |
+| [`claude-code-mod/`](claude-code-mod) | Claude Code 输入框上方：与网页一致的同心圆（外圈 5h 灰、内圈 7d 红）+ `62%` | Claude Code 终端版与桌面 App 的 Code 页 |
 
 ## 浏览器扩展
 
@@ -32,7 +32,7 @@ Show your remaining Claude usage (5-hour and 7-day windows) right in the Claude 
 
 ## Claude Code 插件（quota-band）
 
-只显示 5 小时额度的剩余百分比和重置时间，数据来自 Claude Code 自己记录的额度窗口（每次回复后更新）；用量 ≥80% 变黄，≥90% 变红。
+和网页扩展同一种表现：同心圆外圈是 5 小时额度（灰）、内圈是 7 天额度（红），弧长代表剩余量，旁边只显示 5 小时剩余百分比。桌面 App 的 Code 页用矢量圆环；终端用盲文点阵画圆环（占 3 行，空间不够时退化为 `◔ 62%`）。数据来自 Claude Code 自己记录的额度窗口，每次回复后更新。
 
 在 Claude Code 终端里：
 
