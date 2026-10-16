@@ -63,7 +63,10 @@
   }
 
   // ---------- 绘制 ----------
-  const SHORT = { five_hour: '5h', seven_day: '7d' }
+  // 同心圆：外圈 5 小时（灰），内圈 7 天（红）；弧长 = 剩余量
+  const SVG = 'http://www.w3.org/2000/svg'
+  const RINGS = { five_hour: 10, seven_day: 6 }
+  const CIRC = r => 2 * Math.PI * r
 
   function el(tag, cls, text) {
     const e = document.createElement(tag)
@@ -72,19 +75,38 @@
     return e
   }
 
-  // 名字右侧的两行细线额度表：标签 · 细进度条 · 百分比
+  function circle(cls, r) {
+    const c = document.createElementNS(SVG, 'circle')
+    c.setAttribute('class', cls)
+    c.setAttribute('cx', '13')
+    c.setAttribute('cy', '13')
+    c.setAttribute('r', String(r))
+    return c
+  }
+
   function buildMeter() {
     const meter = el('div')
     meter.id = 'cq-meter'
     meter.setAttribute('role', 'status')
-    for (const kind of ['five_hour', 'seven_day']) {
-      const row = el('div', 'cq-line')
-      row.dataset.kind = kind
-      const track = el('span', 'cq-track')
-      track.appendChild(el('i', 'cq-fill'))
-      row.append(el('span', 'cq-tag', SHORT[kind]), track, el('span', 'cq-pct'))
-      meter.appendChild(row)
+    const svg = document.createElementNS(SVG, 'svg')
+    svg.setAttribute('class', 'cq-rings')
+    svg.setAttribute('width', '26')
+    svg.setAttribute('height', '26')
+    svg.setAttribute('viewBox', '0 0 26 26')
+    const nums = el('div', 'cq-nums')
+    for (const [kind, r] of Object.entries(RINGS)) {
+      const arc = circle('cq-arc', r)
+      arc.dataset.kind = kind
+      arc.setAttribute('stroke-dasharray', String(CIRC(r)))
+      arc.setAttribute('stroke-dashoffset', String(CIRC(r)))
+      const track = circle('cq-track', r)
+      track.dataset.kind = kind
+      svg.append(track, arc)
+      const n = el('span', 'cq-num')
+      n.dataset.kind = kind
+      nums.appendChild(n)
     }
+    meter.append(svg, nums)
     meter.addEventListener('mouseenter', openCard)
     meter.addEventListener('mouseleave', closeCard)
     return meter
@@ -110,6 +132,7 @@
       row.append(l, el('div', 'cq-value', `剩 ${left(w.used)}%`))
       const bar = el('div', 'cq-bar')
       const fill = el('i')
+      fill.dataset.kind = w.kind
       fill.style.width = `${left(w.used)}%`
       bar.appendChild(fill)
       const block = el('div', 'cq-row')
@@ -145,16 +168,16 @@
     if (!meter) meter = buildMeter()
     if (meter.previousElementSibling !== button) button.after(meter)
 
-    for (const row of meter.querySelectorAll('.cq-line')) {
-      const w = list.find(x => x.kind === row.dataset.kind)
-      row.hidden = !w
-      if (!w) continue
-      const pct = left(w.used)
-      row.querySelector('.cq-fill').style.transform = `scaleX(${pct / 100})`
-      row.querySelector('.cq-pct').textContent = `${pct}%`
-      row.dataset.level = pct <= 10 ? 'low' : 'ok'
+    for (const [kind, r] of Object.entries(RINGS)) {
+      const w = list.find(x => x.kind === kind)
+      const pct = w ? left(w.used) : 0
+      const arc = meter.querySelector(`.cq-arc[data-kind="${kind}"]`)
+      arc.setAttribute('stroke-dashoffset', String(CIRC(r) * (1 - pct / 100)))
+      const num = meter.querySelector(`.cq-num[data-kind="${kind}"]`)
+      num.hidden = !w
+      num.textContent = w ? `${pct}%` : ''
     }
-    meter.toggleAttribute('data-compact', meter.offsetWidth > 0 && meter.offsetWidth < 64)
+    meter.toggleAttribute('data-compact', meter.offsetWidth > 0 && meter.offsetWidth < 56)
     meter.setAttribute('aria-label', list.map(w => `${LABELS[w.kind]}剩 ${left(w.used)}%`).join('，'))
     if (document.getElementById('cq-card')?.hasAttribute('data-open')) fillCard()
   }
