@@ -1,4 +1,4 @@
-"""轻量记录 Claude / ChatGPT 桌面应用在前台的时间。
+"""轻量记录 Claude / ChatGPT / Kimi 桌面应用在前台的时间。
 
 每分钟由 server.py 调用一次。检测失败、锁屏或空闲超过 5 分钟时不计时；
 这里只保存按天汇总和上次采样时间，不保存窗口标题等内容。
@@ -12,6 +12,7 @@ import time
 BUNDLES = {
     'com.anthropic.claudefordesktop': 'claude_desktop',
     'com.openai.codex': 'chatgpt_desktop',
+    'com.moonshot.kimichat': 'kimi_desktop',
 }
 IDLE_LIMIT_NS = 5 * 60 * 1_000_000_000
 MAX_SAMPLE_GAP_MS = 90_000

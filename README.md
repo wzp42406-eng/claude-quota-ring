@@ -34,9 +34,11 @@ Show your remaining Claude usage (5-hour and 7-day windows) right in the Claude 
 | claude.ai 网页 | `claude` | 浏览器扩展 | 估算 |
 | ChatGPT / Codex 网页（chatgpt.com） | `chatgpt` | 浏览器扩展 | 估算 |
 | Claude Code（终端和桌面 App 的 Code 页） | `claude_code` | `~/.claude/projects/` 里的会话记录 | 实际值 |
-| Codex（CLI 和桌面） | `codex` | `~/.codex/sessions/` 里的会话记录 | 实际值 |
+| Codex CLI | `codex` | app-server 只读 API + `~/.codex/sessions/` 会话记录 | 官方账户汇总 + 本地精确明细 |
+| Kimi Code CLI | `kimi` | `~/.kimi-code/sessions/` 里的会话记录 | 实际值（输入 / 输出 / 缓存读取） |
+| Claude / ChatGPT / Kimi 桌面软件 | `*_desktop` | 每分钟采样前台应用 | 仅时长，无 token 记录 |
 
-额度：Claude 的 5 小时 / 7 天额度由 Claude Code 插件和浏览器扩展报上来；Codex 的额度从它的会话记录里读。没装这个服务时，扩展和插件照常工作。
+额度：Claude 的 5 小时 / 7 天额度由 Claude Code 插件和浏览器扩展报上来；Codex 优先调用本机 app-server 的 `account/rateLimits/read`，同时用 `account/usage/read` 读取官方累计/每日 Token，失败时回退到会话记录里的最近额度。Codex CLI 和 Kimi Code CLI 使用时长从本机会话事件计算。没装这个服务时，扩展和插件照常工作。
 
 终端里看一眼全部用量：
 
@@ -56,7 +58,7 @@ bash usage-api/install.sh
 
 | 接口 | 返回 |
 | --- | --- |
-| `GET /api/usage` | `periods.day / week / month / year / all`，汇总网页、终端 CLI、桌面软件及可区分的桌面 Code 会话；会话来源另有 `cache_read_tokens`，桌面普通对话的 `tokens` 为 `null`；额度数据保留完整窗口供接口使用 |
+| `GET /api/usage` | `periods.day / week / month / year / all` 汇总各端时长与 Token；`codex_api.token_usage` 提供官方账户 Token 汇总；会话来源另有 `cache_read_tokens`；额度数据保留完整窗口供接口使用 |
 | `GET /api/usage/daily?from=2026-10-01&to=2026-10-31` | 按天明细 |
 | `GET /health` | 不需要密钥，检查服务是否在运行 |
 
@@ -80,7 +82,7 @@ console.log(periods.month.total.minutes, periods.month.total.tokens)
 
 公开地址：<https://wzp42406-eng.github.io/ai-workbench/>（谁都能看）。本机也能打开同一个页面：<http://127.0.0.1:8787/>。页面源文件是 [`site/index.html`](site/index.html)，只有两个板块：
 
-- **AI 用量**：顶部今日总览；网页端、终端 CLI、桌面软件三块明细均可切换今日 / 本周 / 本月 / 今年 / 累计；Claude 和 Codex 只显示 5 小时额度单环；近 14 天按三端分色（悬停看明细，可展开数据表）。
+- **AI 用量**：顶部总览可切换今日 / 本周 / 本月 / 今年 / 累计；网页、终端、桌面三端明细；Claude 和 Codex 显示 5 小时额度单环，Codex 同时显示官方累计 Token；近 30 天可切换时长 / Token，并显示三端堆叠与 7 日均线。
 - **英语 · 跟读为主**：一句一句练。`空格` 听原音（可慢速、跟着高亮），`R` 开始 / 结束跟读，读完按语音识别结果给每个词打勾或标红并打分，还能回放自己的录音和原音对比；`←` `→` 换句。自带需求访谈、方案演示、回应异议、会后跟进、日常沟通五组材料，也可以粘贴自己的邮件或演讲稿练。每天目标 10 句，记录练习分钟数和连续天数。
 - **生词 · 辅助**：小卡片间隔复习（每天 5 张新卡），可添加、删除。
 

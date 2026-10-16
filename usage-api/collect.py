@@ -4,6 +4,7 @@
   entrypoint=claude-desktop 的 Code 标签页 token 单独归入桌面端
 - Codex：~/.codex/sessions/**/*.jsonl，token_count 事件的 last_token_usage 和 rate_limits；
   originator 带 desktop 的会话同样与终端拆分
+- Kimi Code：~/.kimi-code/sessions/**/*.jsonl，usage.record 事件的输入、输出与缓存；
 
 增量读取：记住每个文件读到的位置，只读新增的完整行。
 tokens = 未命中缓存的输入 + 写缓存 + 输出；命中缓存的输入另记为 cache_read。
@@ -20,9 +21,10 @@ HOME = Path.home()
 SOURCES = {
     'claude_code': HOME / '.claude/projects',
     'codex': HOME / '.codex/sessions',
+    'kimi': HOME / '.kimi-code/sessions',
 }
 GAP_MS = 5 * 60 * 1000
-COLLECTOR_VERSION = 3
+COLLECTOR_VERSION = 4
 DATA_DIR = Path(os.environ.get('AI_USAGE_DIR', HOME / 'Library/Application Support/ai-usage'))
 _sampling_since = None  # 桌面前台采样开始的时刻（毫秒）；之前的桌面会话时长按间隔补算
 
@@ -143,19 +145,40 @@ def _codex_line(obj, days, st, quota):
         }
 
 
+def _kimi_line(obj, days, st, quota):
+    """Kimi Code 2.x：毫秒时间戳；每个 usage.record 是一次模型请求的增量。"""
+    value = obj.get('time')
+    if not isinstance(value, (int, float)):
+        return
+    ms = int(value)
+    when = dt.datetime.fromtimestamp(ms / 1000, dt.timezone.utc)
+    day = when.astimezone().date().isoformat()
+    _add_time(days, 'kimi', st, ms, day)
+    if obj.get('type') != 'usage.record':
+        return
+    usage = obj.get('usage') or {}
+    input_tokens = (usage.get('inputOther') or 0) + (usage.get('inputCacheCreation') or 0)
+    output_tokens = usage.get('output') or 0
+    cache_read = usage.get('inputCacheRead') or 0
+    b = _bucket(days, day, 'kimi')
+    b['tok'] += input_tokens + output_tokens
+    b['cache'] += cache_read
+    b['input'] = b.get('input', 0) + input_tokens
+    b['output'] = b.get('output', 0) + output_tokens
+
+
 def _iso(epoch):
     return dt.datetime.fromtimestamp(epoch, dt.timezone.utc).astimezone().isoformat(timespec='seconds')
 
 
-PARSERS = {'claude_code': _claude_line, 'codex': _codex_line}
+PARSERS = {'claude_code': _claude_line, 'codex': _codex_line, 'kimi': _kimi_line}
 
 
 def scan(state):
     """state: {'files': {...}, 'days': {...}, 'quota': {'codex': {...}}}，原地更新；返回是否有新数据。"""
     changed = False
     if state.get('collector_version') != COLLECTOR_VERSION:
-        # v2 开始按 entrypoint 拆分 Claude CLI 与桌面 Code。旧汇总无法安全相减，
-        # 因此只在升级时从会话记录重建一次，避免历史数据重复。
+        # 版本升级时新增或重分来源。旧汇总无法安全相减，因此从会话记录重建一次。
         state.clear()
         state['collector_version'] = COLLECTOR_VERSION
         changed = True

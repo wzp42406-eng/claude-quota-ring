@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""本机 AI 用量 API：汇总浏览器扩展（claude.ai / chatgpt.com）和终端（Claude Code / Codex）的用量与额度，给个人工作台等读取。
+"""本机 AI 用量 API：汇总浏览器、终端和桌面 AI 工具的用量与额度，给个人工作台等读取。
 
 只监听 127.0.0.1，不对外网开放。读取要带专属密钥：
     curl -H "Authorization: Bearer <密钥>" http://127.0.0.1:8787/api/usage
@@ -21,14 +21,15 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 import collect
+import codex_api
 import desktop_usage
 
 DATA_DIR = Path(os.environ.get('AI_USAGE_DIR', Path.home() / 'Library/Application Support/ai-usage'))
 DATA = DATA_DIR / 'usage.json'
 CONFIG = DATA_DIR / 'config.json'
 WEB = ('claude', 'chatgpt')          # 浏览器扩展
-CLI = ('claude_code', 'codex')       # 终端会话记录
-DESKTOP_APPS = ('claude_desktop', 'chatgpt_desktop')
+CLI = ('claude_code', 'codex', 'kimi')       # 终端会话记录
+DESKTOP_APPS = ('claude_desktop', 'chatgpt_desktop', 'kimi_desktop')
 DESKTOP_CODE = ('claude_desktop_code', 'codex_desktop_code')
 DESKTOP = DESKTOP_APPS + DESKTOP_CODE
 SOURCES = WEB + CLI + DESKTOP
@@ -88,19 +89,30 @@ def now_iso():
     return dt.datetime.now().astimezone().isoformat(timespec='seconds')
 
 
-# ---------- 终端 CLI：读 Claude Code / Codex 自己的会话记录 ----------
+# ---------- 终端 CLI：读 Claude Code / Codex / Kimi Code 自己的会话记录 ----------
 _last_scan = 0.0
+_last_codex_api_scan = 0.0
 
 
 def scan_cli(force=False):
     """最多 10 秒扫一次；只读新增内容，通常几毫秒。"""
-    global _last_scan
+    global _last_scan, _last_codex_api_scan
     if not force and time.monotonic() - _last_scan < 10:
         return
     with LOCK:
         _last_scan = time.monotonic()
         state = load(CLI_STATE, {})
-        if collect.scan(state):
+        changed = collect.scan(state)
+        # app-server 是 Codex 自己的只读额度/Token API。后台最多 5 分钟请求一次；
+        # 失败时保留最近一次成功快照，会话日志仍可作为额度兜底。
+        if time.monotonic() - _last_codex_api_scan >= 300:
+            _last_codex_api_scan = time.monotonic()
+            try:
+                state['codex_api'] = codex_api.read()
+                changed = True
+            except (OSError, RuntimeError, TimeoutError, ValueError):
+                pass
+        if changed:
             state['updated_at'] = now_iso()
             save(CLI_STATE, state)
 
@@ -139,11 +151,15 @@ def _ts_before_now(iso):
 def quota_view():
     out = {}
     q = load(QUOTA, {})
-    codex = load(CLI_STATE, {}).get('quota', {}).get('codex', {})
+    cli_state = load(CLI_STATE, {})
+    api_quota = (cli_state.get('codex_api') or {}).get('quota') or {}
+    codex = {k: v for k, v in api_quota.items() if k in ('five_hour', 'seven_day')}
+    if not codex:
+        codex = cli_state.get('quota', {}).get('codex', {})
     for source, windows in (('claude', q.get('claude', {})), ('codex', codex)):
         out[source] = {}
         for kind, w in windows.items():
-            seen = w.get('observed_at') or (dt.datetime.fromtimestamp(w['observed_ms'] / 1000).astimezone()
+            seen = w.get('observed_at') or (api_quota.get('observed_at') if source == 'codex' else None) or (dt.datetime.fromtimestamp(w['observed_ms'] / 1000).astimezone()
                                             .isoformat(timespec='seconds') if w.get('observed_ms') else None)
             used = w['used_percent']
             reset = w.get('resets_at')
@@ -155,6 +171,7 @@ def quota_view():
                 'resets_at': None if passed else reset,
                 'observed_at': seen,
                 'reset_since': passed,
+                'source': api_quota.get('source') if source == 'codex' and api_quota else 'local_report',
             }
     return out
 
@@ -170,8 +187,8 @@ def all_days():
             for source, value in rec.items():
                 if source not in allowed:
                     continue
-                out = target.setdefault(source, {'ms': 0, 'tok': 0, 'cache': 0})
-                for field in ('ms', 'tok', 'cache'):
+                out = target.setdefault(source, {'ms': 0, 'tok': 0, 'cache': 0, 'input': 0, 'output': 0})
+                for field in ('ms', 'tok', 'cache', 'input', 'output'):
                     out[field] += int((value or {}).get(field, 0) or 0)
 
     merge_file(DATA, WEB)
@@ -192,33 +209,40 @@ def period_start(pid, today):
     return dt.date.min
 
 
-def entry(ms, tok, cache=None):
+def entry(ms, tok, cache=None, input_tokens=None, output_tokens=None):
     e = {'minutes': round(ms / 60000, 1), 'tokens': tok}
     if cache is not None:
         e['cache_read_tokens'] = cache
+    if input_tokens is not None:
+        e['input_tokens'] = input_tokens
+    if output_tokens is not None:
+        e['output_tokens'] = output_tokens
     return e
 
 
 def group(rec, names):
-    ms = tok = cache = 0
+    ms = tok = cache = input_tokens = output_tokens = 0
     for s in names:
         v = rec.get(s) or {}
         ms += v.get('ms', 0)
         tok += v.get('tok', 0)
         cache += v.get('cache', 0)
-    return ms, tok, cache
+        input_tokens += v.get('input', 0)
+        output_tokens += v.get('output', 0)
+    return ms, tok, cache, input_tokens, output_tokens
 
 
 def row(rec):
     out = {}
     for s in SOURCES:
-        ms, tok, cache = group(rec, [s])
-        out[s] = entry(ms, tok, cache if s in CLI + DESKTOP_CODE else None)
+        ms, tok, cache, input_tokens, output_tokens = group(rec, [s])
+        out[s] = entry(ms, tok, cache if s in CLI + DESKTOP_CODE else None,
+                       input_tokens if s == 'kimi' else None, output_tokens if s == 'kimi' else None)
         if s in DESKTOP_APPS:
             out[s]['tokens'] = None
     out['web_total'] = entry(*group(rec, WEB)[:2])
-    out['cli_total'] = entry(*group(rec, CLI))
-    out['desktop_total'] = entry(*group(rec, DESKTOP))
+    out['cli_total'] = entry(*group(rec, CLI)[:3])
+    out['desktop_total'] = entry(*group(rec, DESKTOP)[:3])
     out['total'] = entry(*group(rec, SOURCES)[:2])
     return out
 
@@ -234,12 +258,15 @@ def summary():
         for day, rec in days.items():
             if start <= day <= today.isoformat():
                 for s, v in rec.items():
-                    a = acc.setdefault(s, {'ms': 0, 'tok': 0, 'cache': 0})
+                    a = acc.setdefault(s, {'ms': 0, 'tok': 0, 'cache': 0, 'input': 0, 'output': 0})
                     a['ms'] += v.get('ms', 0)
                     a['tok'] += v.get('tok', 0)
                     a['cache'] += v.get('cache', 0)
+                    a['input'] += v.get('input', 0)
+                    a['output'] += v.get('output', 0)
         periods[pid] = row(acc)
         periods[pid]['from'] = None if pid == 'all' else start
+    codex_api_snapshot = load(CLI_STATE, {}).get('codex_api') or {}
     return {
         'updated_at': now_iso(),
         'sources': {
@@ -247,13 +274,19 @@ def summary():
             'chatgpt': 'ChatGPT / Codex 网页 chatgpt.com（扩展统计，token 为估算）',
             'claude_code': 'Claude Code 终端（会话记录，token 为实际值）',
             'codex': 'Codex CLI 终端（会话记录，token 为实际值）',
+            'kimi': 'Kimi Code CLI 终端（会话记录，token 为实际值）',
             'claude_desktop': 'Claude 桌面软件（前台采样；普通对话无 token 记录）',
             'chatgpt_desktop': 'ChatGPT 桌面软件（前台采样；无 token 记录）',
+            'kimi_desktop': 'Kimi 桌面软件（前台采样；无 token 记录）',
             'claude_desktop_code': 'Claude 桌面 Code 标签页（entrypoint=claude-desktop，token 为实际值）',
             'codex_desktop_code': 'Codex 桌面会话（originator 含 desktop，token 为实际值）',
         },
-        'note': '终端与 Claude 桌面 Code tokens = 未命中缓存的输入 + 写缓存 + 输出；cache_read_tokens 为命中缓存的输入，另计。桌面普通对话无 token 记录',
+        'note': 'Codex 额度与账户累计 token 来自本机 app-server 只读 API；CLI 时长与当前周期 token 来自会话记录。会话 token 不含 cache_read_tokens，缓存读取另列。Claude、ChatGPT、Kimi 桌面对话无 token 记录',
         'quota': quota_view(),
+        'codex_api': {
+            'updated_at': codex_api_snapshot.get('updated_at'),
+            'token_usage': codex_api_snapshot.get('token_usage') or {},
+        },
         'periods': periods,
     }
 
@@ -374,6 +407,7 @@ def public_snapshot(days=60):
         'updated_at': s['updated_at'],
         'note': s['note'],
         'quota': s['quota'],
+        'codex_api': s['codex_api'],
         'periods': s['periods'],
         'daily': daily({'from': [start]})['days'],
     }
