@@ -14,7 +14,6 @@ const REFETCH_MS = 20_000
 const CODEX_FRESH_MS = 5 * 60 * 60 * 1000
 
 const GRAY = 0x8f8a80
-const RED = 0xd7493c
 const DEFAULT = 0x01000000
 
 export const remaining = (l: Limit | undefined) => (l ? Math.max(0, Math.min(100, Math.round(100 - l.percentUsed))) : 0)
@@ -25,7 +24,7 @@ export const pick = (list: readonly Limit[]) => ({
 })
 
 // ---------- 桌面：SVG 同心圆 ----------
-export function ringsSvg(five: number, seven: number) {
+export function ringsSvg(five: number) {
   const arc = (r: number, pct: number, color: string) => {
     const c = 2 * Math.PI * r
     return (
@@ -34,7 +33,7 @@ export function ringsSvg(five: number, seven: number) {
       `stroke-dasharray="${c.toFixed(2)}" stroke-dashoffset="${(c * (1 - pct / 100)).toFixed(2)}" transform="rotate(-90 10 10)"/>`
     )
   }
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20">${arc(8, five, '#8f8a80')}${arc(4.5, seven, '#d7493c')}</svg>`
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20">${arc(8, five, '#8f8a80')}</svg>`
 }
 
 // ---------- 终端：盲文点阵同心圆（6 列 × 3 行 = 12 × 12 点）----------
@@ -53,7 +52,7 @@ const onArc = (dx: number, dy: number, pct: number) => {
   return turn < pct / 100
 }
 
-export function ringsCells(five: number, seven: number) {
+export function ringsCells(five: number) {
   const { columns, rows } = RASTER
   const bits = new Array<number>(columns * rows).fill(0)
   const color = new Array<number>(columns * rows).fill(DEFAULT)
@@ -64,7 +63,7 @@ export function ringsCells(five: number, seven: number) {
       const dy = y - c
       const d = Math.hypot(dx, dy)
       // 外圈只落在边缘的格子，内圈只落在中间两格，同一格不会混色
-      const ring = d >= 4.6 && d <= 5.9 ? { pct: five, rgb: GRAY } : d >= 1.4 && d <= 2.4 ? { pct: seven, rgb: RED } : null
+      const ring = d >= 4.6 && d <= 5.9 ? { pct: five, rgb: GRAY } : null
       if (!ring || !onArc(dx, dy, ring.pct)) continue
       const i = Math.floor(y / 4) * columns + Math.floor(x / 2)
       bits[i] = (bits[i] ?? 0) | (DOT_BITS[y % 4]?.[x % 2] ?? 0)
@@ -126,26 +125,21 @@ type BandText = { claude: string; codex: string }
 
 // 同一行按可用宽度降级，优先级：5h 主数字 > 周余量 > 今日用量 > 重置时间。
 export function bandText(five: Limit | undefined, claudeToday: Today | null, cx: Codex | null, now: number, columns = Infinity): BandText {
+  // 只显示 5 小时额度：周额度和重置时间都不显示，保持一眼能读完
   const left5 = five ? remaining(five) : null
   const claudeQuota = left5 === null ? 'Claude —' : `Claude ${left5}%`
-  const claudeUsage = claudeToday ? ` │ 今日 ${fmtTime(claudeToday.minutes)} · ${fmtTok(claudeToday.tokens)}` : ''
+  const claudeUsage = claudeToday ? ` · 今日 ${fmtTime(claudeToday.minutes)} · ${fmtTok(claudeToday.tokens)}` : ''
   const fresh5 = quotaIsFresh(cx?.fiveHour, now)
-  const fresh7 = fresh5 && quotaIsFresh(cx?.sevenDay, now)
-  const codexQuota = fresh5 ? `Codex 5h ${Math.round(cx!.fiveHour!.remaining_percent)}%` : 'Codex —'
-  const week = fresh7 ? ` · 周 ${Math.round(cx!.sevenDay!.remaining_percent)}%` : ''
-  const reset5 = fresh5 ? fmtReset(cx?.fiveHour?.resets_at, now) : ''
-  const reset7 = fresh7 ? fmtReset(cx?.sevenDay?.resets_at, now) : ''
-  const codexQuotaWithReset = codexQuota + (reset5 ? ` ↻${reset5}` : '')
-  const weekWithReset = week + (reset7 ? ` ↻${reset7}` : '')
-  const codexUsage = fresh5 && cx?.today ? ` │ 今日 ${fmtTime(cx.today.minutes)} · ${fmtTok(cx.today.tokens)}` : ''
+  const codexQuota = fresh5 ? `Codex ${Math.round(cx!.fiveHour!.remaining_percent)}%` : 'Codex —'
+  const codexUsage = fresh5 && cx?.today ? ` · 今日 ${fmtTime(cx.today.minutes)} · ${fmtTok(cx.today.tokens)}` : ''
   const candidates: BandText[] = [
-    { claude: claudeQuota + claudeUsage, codex: codexQuotaWithReset + weekWithReset + codexUsage },
-    { claude: claudeQuota + claudeUsage, codex: codexQuota + week + codexUsage },
-    { claude: claudeQuota, codex: codexQuota + week },
+    { claude: claudeQuota + claudeUsage, codex: codexQuota + codexUsage },
     { claude: claudeQuota, codex: codexQuota },
   ]
-  return candidates.find(x => displayWidth(`${x.claude} ‖ ${x.codex}`) <= columns) ?? candidates.at(-1)!
+  return candidates.find(x => displayWidth(`${x.claude}${SEP}${x.codex}`) <= columns) ?? candidates.at(-1)!
 }
+
+export const SEP = '  │  '
 
 // ---------- 本机用量 API（usage-api/server.py）：没装就什么都不做 ----------
 let apiKey: string | undefined
@@ -219,30 +213,29 @@ export const register: Register = on => {
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    const { five, seven } = pick(await read($, limits))
+    const { five } = pick(await read($, limits))
     const used = await read($, today)
     const cx = await read($, codex)
     if (e.props.hasSurvey || (!five && !used && !cx)) return next(e)
 
     const left5 = remaining(five)
-    const left7 = remaining(seven)
     const now = await $.clock.now()
     const width = e.surface === 'terminal' ? Math.max(20, e.props.bodyColumns - (five && e.props.maxRows >= RASTER.rows ? RASTER.columns + 2 : 0)) : Infinity
     const text = bandText(five, used, cx, now, width)
-    const alt = [five && `Claude 5 小时额度剩 ${left5}%`, seven && `Claude 7 天额度剩 ${left7}%`, used && `今日 Claude Code 使用 ${fmtTime(used.minutes)}、${fmtTok(used.tokens)} tokens`, text.codex]
+    const alt = [five && `Claude 5 小时额度剩 ${left5}%`, used && `今日 Claude Code 使用 ${fmtTime(used.minutes)}、${fmtTok(used.tokens)} tokens`, text.codex]
       .filter(Boolean).join('，')
 
     if (e.surface === 'terminal') {
       const { Box, Text, Raster } = $.ui.resolve(e)
       if (!five || e.props.maxRows < RASTER.rows) {
         return (
-          <Box flexDirection="row"><Text dimColor>{text.claude} ‖ {text.codex}</Text></Box>
+          <Box flexDirection="row"><Text dimColor>{text.claude}{SEP}{text.codex}</Text></Box>
         )
       }
       return (
         <Box flexDirection="row" alignItems="center" gap={1}>
-          <Raster key="rings" columns={RASTER.columns} rows={RASTER.rows} cells={ringsCells(left5, left7)} />
-          <Text dimColor>{text.claude} ‖ {text.codex}</Text>
+          <Raster key="rings" columns={RASTER.columns} rows={RASTER.rows} cells={ringsCells(left5)} />
+          <Text dimColor>{text.claude}{SEP}{text.codex}</Text>
         </Box>
       )
     }
@@ -251,8 +244,8 @@ export const register: Register = on => {
       const { Box, Text, Svg } = $.ui.resolve(e)
       return (
         <Box flexDirection="row" alignItems="center" gap={1}>
-          {five ? <Svg key="rings" source={ringsSvg(left5, left7)} alt={alt} width={20} height={20} /> : null}
-          <Text dimColor>{text.claude} ‖ {text.codex}</Text>
+          {five ? <Svg key="rings" source={ringsSvg(left5)} alt={alt} width={20} height={20} /> : null}
+          <Text dimColor>{text.claude}{SEP}{text.codex}</Text>
         </Box>
       )
     }

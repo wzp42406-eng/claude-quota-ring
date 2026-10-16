@@ -1,7 +1,7 @@
 {
   "name": "quota-band",
-  "version": "0.5.0",
-  "description": "在 Claude Code 输入框上方显示 Claude 与 Codex 的额度余量、今日使用时长和 token",
+  "version": "0.6.0",
+  "description": "在 Claude Code 输入框上方显示 Claude 与 Codex 的 5 小时额度余量、今日使用时长和 token",
   "author": { "name": "wzp42406-eng" },
   "license": "MIT",
   "types": "./types/index.d.ts"

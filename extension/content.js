@@ -89,6 +89,9 @@
         : null)
       .filter(Boolean)
 
+  // 页面上只显示 5 小时额度；7 天的读数仍报给本机 API（工作台用）
+  const shown = () => windows().filter(w => w.kind === 'five_hour')
+
   const left = used => Math.max(0, Math.min(100, Math.round(100 - used)))
 
   function untilReset(iso) {
@@ -284,9 +287,9 @@
   // ======================================================================
   // 绘制
   // ======================================================================
-  // 同心圆：外圈 5 小时（灰），内圈 7 天（红）；弧长 = 剩余量
+  // 单圈：只画 5 小时额度（灰），弧长 = 剩余量；7 天额度不显示（用户要求简化）
   const SVG = 'http://www.w3.org/2000/svg'
-  const RINGS = { five_hour: 8, seven_day: 4.5 }
+  const RINGS = { five_hour: 8 }
   const CIRC = r => 2 * Math.PI * r
 
   function circle(cls, r) {
@@ -393,7 +396,7 @@
   function fillCard() {
     const c = card()
     c.replaceChildren()
-    for (const w of windows()) {
+    for (const w of shown()) {
       const block = el('div', 'cq-block')
       const row = el('div', 'cq-row')
       const l = el('div')
@@ -407,7 +410,7 @@
       block.append(row, bar)
       c.appendChild(block)
     }
-    if (windows().length) {
+    if (shown().length) {
       const mins = Math.round((Date.now() - fetchedAt) / 60000)
       c.appendChild(el('div', 'cq-foot', SITE === 'claude'
         ? (mins < 1 ? '额度刚刚更新' : `额度 ${mins} 分钟前更新`)
@@ -578,7 +581,7 @@
       observed = button
     }
 
-    const list = windows()
+    const list = shown()
     meter.querySelector('.cq-quota').hidden = list.length === 0
     for (const [kind, r] of Object.entries(RINGS)) {
       const w = list.find(x => x.kind === kind)

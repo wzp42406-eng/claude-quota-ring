@@ -1,7 +1,7 @@
 import type { RenderElement } from 'claude-code'
 import { expect, mock, test } from 'claude-code/testing'
 
-import { RASTER, bandText, fmtReset, pick, quotaIsFresh, remaining, ringsCells, ringsSvg } from '../hooks/register'
+import { RASTER, SEP, bandText, fmtReset, pick, quotaIsFresh, remaining, ringsCells, ringsSvg } from '../hooks/register'
 
 const BAND = {
   component: 'AbovePrompt',
@@ -17,17 +17,17 @@ test('remaining turns used into what is left', async () => {
   expect(seven?.percentUsed).toBe(12)
 })
 
-test('svg draws an outer gray ring and an inner red ring', async () => {
-  const svg = ringsSvg(62, 88)
+test('svg draws a single gray 5-hour ring', async () => {
+  const svg = ringsSvg(62)
   expect(svg).toContain('r="8"')
-  expect(svg).toContain('r="4.5"')
+  expect(svg).not.toContain('r="4.5"')
   expect(svg).toContain('#8f8a80')
-  expect(svg).toContain('#d7493c')
+  expect(svg).not.toContain('#d7493c')
 })
 
 test('braille raster covers every cell and empties as quota runs out', async () => {
-  const cells = (pct5: number, pct7: number) => {
-    const bin = atob(ringsCells(pct5, pct7))
+  const cells = (pct5: number, _unused?: number) => {
+    const bin = atob(ringsCells(pct5))
     const bytes = Uint8Array.from(bin, ch => ch.charCodeAt(0))
     return new Uint32Array(bytes.buffer)
   }
@@ -73,7 +73,7 @@ test('band shows rings and only the 5-hour percentage', async ($, on) => {
   }
 })
 
-test('Codex formatter keeps quota first, adds resets when space allows, and rejects stale data', async () => {
+test('band text shows only the 5-hour quota and today\'s usage, and rejects stale Codex data', async () => {
   const now = Date.parse('2026-10-16T10:00:00+08:00')
   const cx = {
     today: { minutes: 38.8, tokens: 310_000 },
@@ -81,9 +81,9 @@ test('Codex formatter keeps quota first, adds resets when space allows, and reje
     sevenDay: { remaining_percent: 40, resets_at: '2026-10-20T12:30:00+08:00', observed_at: '2026-10-16T09:59:00+08:00' },
   }
   const full = bandText({ kind: 'five_hour', percentUsed: 67 }, { minutes: 164, tokens: 1_100_000 }, cx, now)
-  expect(`${full.claude} ‖ ${full.codex}`).toBe('Claude 33% │ 今日 2h44m · 1.1M ‖ Codex 5h 72% ↻12:30 · 周 40% ↻10/20 12:30 │ 今日 38m · 310k')
+  expect(`${full.claude}${SEP}${full.codex}`).toBe('Claude 33% · 今日 2h44m · 1.1M  │  Codex 72% · 今日 38m · 310k')
   const narrow = bandText({ kind: 'five_hour', percentUsed: 67 }, { minutes: 164, tokens: 1_100_000 }, cx, now, 30)
-  expect(`${narrow.claude} ‖ ${narrow.codex}`).toBe('Claude 33% ‖ Codex 5h 72%')
+  expect(`${narrow.claude}${SEP}${narrow.codex}`).toBe('Claude 33%  │  Codex 72%')
   expect(quotaIsFresh(cx.fiveHour, now)).toBe(true)
   expect(fmtReset(cx.fiveHour.resets_at, now)).toBe('12:30')
 
@@ -135,8 +135,8 @@ test('band adds today\'s Claude Code time and tokens from the local usage API', 
   for (const surface of ['terminal', 'desktop'] as const) {
     const ui = await $.ui.mount({ plugin: 'quota-band', surface, ...BAND })
     expect(await ui.find({ type: 'Text', text: /Claude 60%/ })).toBeDefined()
-    expect(await ui.find({ type: 'Text', text: /Codex 5h 72%/ })).toBeDefined()
-    expect(await ui.find({ type: 'Text', text: /周 40%/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /Codex 72%/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /周|↻/ })).toBeUndefined()
     if (surface === 'desktop') {
       expect(await ui.find({ type: 'Text', text: /今日 2h33m · 1\.0M/ })).toBeDefined()
       expect(await ui.find({ type: 'Text', text: /今日 38m · 310k/ })).toBeDefined()
