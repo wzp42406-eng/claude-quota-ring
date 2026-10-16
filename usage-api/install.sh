@@ -1,6 +1,6 @@
 #!/bin/bash
 # 把本机 AI 用量 API 装成登录后自动运行的后台服务（launchd），并显示专属密钥；
-# 另装一个每 12 小时把工作台发布到公开网站（GitHub Pages）的定时任务。
+# 另装一个每 1 小时把工作台发布到公开网站（GitHub Pages）的定时任务。
 # 卸载：bash install.sh --uninstall
 set -euo pipefail
 LABEL=com.claude-quota-ring.usage-api
@@ -42,7 +42,7 @@ cat > "$PUB_PLIST" <<PL
 <plist version="1.0"><dict>
   <key>Label</key><string>$PUB_LABEL</string>
   <key>ProgramArguments</key><array><string>$PY</string><string>$PUBLISH</string></array>
-  <key>StartInterval</key><integer>43200</integer>
+  <key>StartInterval</key><integer>3600</integer>
   <key>RunAtLoad</key><true/>
   <key>EnvironmentVariables</key><dict><key>PATH</key><string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string></dict>
   <key>StandardOutPath</key><string>$HOME/Library/Logs/ai-usage-publish.log</string>
@@ -51,5 +51,5 @@ cat > "$PUB_PLIST" <<PL
 PL
 launchctl bootout "gui/$(id -u)/$PUB_LABEL" 2>/dev/null || true
 launchctl bootstrap "gui/$(id -u)" "$PUB_PLIST"
-echo "公开网站每 12 小时更新：https://wzp42406-eng.github.io/ai-workbench/"
+echo "公开网站每 1 小时更新：https://wzp42406-eng.github.io/ai-workbench/"
 echo "专属密钥：$("$PY" "$SERVER" --key)"

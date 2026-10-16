@@ -21,14 +21,19 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 import collect
+import desktop_usage
 
 DATA_DIR = Path(os.environ.get('AI_USAGE_DIR', Path.home() / 'Library/Application Support/ai-usage'))
 DATA = DATA_DIR / 'usage.json'
 CONFIG = DATA_DIR / 'config.json'
 WEB = ('claude', 'chatgpt')          # 浏览器扩展
 CLI = ('claude_code', 'codex')       # 终端会话记录
-SOURCES = WEB + CLI
+DESKTOP_APPS = ('claude_desktop', 'chatgpt_desktop')
+DESKTOP_CODE = ('claude_desktop_code', 'codex_desktop_code')
+DESKTOP = DESKTOP_APPS + DESKTOP_CODE
+SOURCES = WEB + CLI + DESKTOP
 CLI_STATE = DATA_DIR / 'cli_state.json'
+DESKTOP_STATE = DATA_DIR / 'desktop_state.json'
 QUOTA = DATA_DIR / 'quota.json'
 PAGE = Path(__file__).resolve().parent.parent / 'site' / 'index.html'
 PERIODS = ('day', 'week', 'month', 'year', 'all')
@@ -100,6 +105,15 @@ def scan_cli(force=False):
             save(CLI_STATE, state)
 
 
+def sample_desktop():
+    """每分钟记录一次前台桌面 AI 应用；检测失败、锁屏或空闲时不计。"""
+    with LOCK:
+        state = load(DESKTOP_STATE, {})
+        desktop_usage.sample(state)
+        state['updated_at'] = now_iso()
+        save(DESKTOP_STATE, state)
+
+
 def set_quota(source, limits):
     """Claude 额度：Claude Code 插件或浏览器扩展报来的 5 小时 / 7 天窗口。"""
     with LOCK:
@@ -147,12 +161,22 @@ def quota_view():
 
 # ---------- 汇总 ----------
 def all_days():
-    """{日期: {来源: {ms, tok, cache}}}，网页（扩展）和终端（会话记录）合在一起"""
+    """{日期: {来源: {ms, tok, cache}}}，网页、终端和桌面汇总在一起。"""
     days = {}
-    for day, rec in load(DATA, {'days': {}})['days'].items():
-        days.setdefault(day, {}).update({s: v for s, v in rec.items() if s in WEB})
-    for day, rec in load(CLI_STATE, {}).get('days', {}).items():
-        days.setdefault(day, {}).update({s: v for s, v in rec.items() if s in CLI})
+
+    def merge_file(path, allowed):
+        for day, rec in load(path, {'days': {}}).get('days', {}).items():
+            target = days.setdefault(day, {})
+            for source, value in rec.items():
+                if source not in allowed:
+                    continue
+                out = target.setdefault(source, {'ms': 0, 'tok': 0, 'cache': 0})
+                for field in ('ms', 'tok', 'cache'):
+                    out[field] += int((value or {}).get(field, 0) or 0)
+
+    merge_file(DATA, WEB)
+    merge_file(CLI_STATE, CLI + DESKTOP_CODE)
+    merge_file(DESKTOP_STATE, DESKTOP_APPS)
     return days
 
 
@@ -189,9 +213,12 @@ def row(rec):
     out = {}
     for s in SOURCES:
         ms, tok, cache = group(rec, [s])
-        out[s] = entry(ms, tok, cache if s in CLI else None)
+        out[s] = entry(ms, tok, cache if s in CLI + DESKTOP_CODE else None)
+        if s in DESKTOP_APPS:
+            out[s]['tokens'] = None
     out['web_total'] = entry(*group(rec, WEB)[:2])
     out['cli_total'] = entry(*group(rec, CLI))
+    out['desktop_total'] = entry(*group(rec, DESKTOP))
     out['total'] = entry(*group(rec, SOURCES)[:2])
     return out
 
@@ -218,10 +245,14 @@ def summary():
         'sources': {
             'claude': '网页 claude.ai（扩展统计，token 为估算）',
             'chatgpt': 'ChatGPT / Codex 网页 chatgpt.com（扩展统计，token 为估算）',
-            'claude_code': 'Claude Code 终端/桌面 Code 页（会话记录，token 为实际值）',
-            'codex': 'Codex CLI / 桌面（会话记录，token 为实际值）',
+            'claude_code': 'Claude Code 终端（会话记录，token 为实际值）',
+            'codex': 'Codex CLI 终端（会话记录，token 为实际值）',
+            'claude_desktop': 'Claude 桌面软件（前台采样；普通对话无 token 记录）',
+            'chatgpt_desktop': 'ChatGPT 桌面软件（前台采样；无 token 记录）',
+            'claude_desktop_code': 'Claude 桌面 Code 标签页（entrypoint=claude-desktop，token 为实际值）',
+            'codex_desktop_code': 'Codex 桌面会话（originator 含 desktop，token 为实际值）',
         },
-        'note': 'tokens = 未命中缓存的输入 + 写缓存 + 输出；cache_read_tokens 为命中缓存的输入，另计',
+        'note': '终端与 Claude 桌面 Code tokens = 未命中缓存的输入 + 写缓存 + 输出；cache_read_tokens 为命中缓存的输入，另计。桌面普通对话无 token 记录',
         'quota': quota_view(),
         'periods': periods,
     }
@@ -354,6 +385,8 @@ def fmt_min(m):
 
 
 def fmt_tok(n):
+    if n is None:
+        return '—'
     return f'{n / 1e6:.1f}M' if n >= 1e6 else f'{n / 1e3:.1f}k' if n >= 1e3 else str(n)
 
 
@@ -368,7 +401,8 @@ def print_summary():
     scan_cli(force=True)
     d = summary()
     names = {'claude': 'Claude 网页', 'chatgpt': 'ChatGPT 网页', 'claude_code': 'Claude Code', 'codex': 'Codex',
-             'total': '合计'}
+             'claude_desktop': 'Claude 桌面', 'chatgpt_desktop': 'ChatGPT 桌面',
+             'claude_desktop_code': 'Claude 桌面 Code', 'codex_desktop_code': 'Codex 桌面 Code', 'total': '合计'}
     labels = {'day': '今日', 'week': '本周', 'month': '本月', 'year': '今年', 'all': '累计'}
     print(pad('', 13) + ''.join(pad(labels[p], 15, True) for p in PERIODS))
     for s in (*SOURCES, 'total'):
@@ -396,9 +430,14 @@ def main():
     api_key()
 
     def rescan():
+        next_desktop = 0.0
         while True:
             try:
                 scan_cli(force=True)
+                now = time.monotonic()
+                if now >= next_desktop:
+                    sample_desktop()
+                    next_desktop = now + 60
             except Exception as err:  # 别让后台扫描的意外打断服务
                 print(f'scan failed: {err}', flush=True)
             time.sleep(30)

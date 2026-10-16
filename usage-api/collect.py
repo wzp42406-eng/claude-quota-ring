@@ -1,7 +1,9 @@
 """读取本机终端 AI 工具自己写的会话记录，按天汇总使用时长和 token（实际值，不是估算）。
 
-- Claude Code：~/.claude/projects/**/*.jsonl，每条回复的 message.usage
-- Codex：~/.codex/sessions/**/*.jsonl，token_count 事件的 last_token_usage 和 rate_limits
+- Claude Code：~/.claude/projects/**/*.jsonl，每条回复的 message.usage；
+  entrypoint=claude-desktop 的 Code 标签页 token 单独归入桌面端
+- Codex：~/.codex/sessions/**/*.jsonl，token_count 事件的 last_token_usage 和 rate_limits；
+  originator 带 desktop 的会话同样与终端拆分
 
 增量读取：记住每个文件读到的位置，只读新增的完整行。
 tokens = 未命中缓存的输入 + 写缓存 + 输出；命中缓存的输入另记为 cache_read。
@@ -17,6 +19,7 @@ SOURCES = {
     'codex': HOME / '.codex/sessions',
 }
 GAP_MS = 5 * 60 * 1000
+COLLECTOR_VERSION = 2
 
 
 def _ts(value):
@@ -47,7 +50,11 @@ def _claude_line(obj, days, st, quota):
     if not ts:
         return
     ms, day = _ts(ts)
-    _add_time(days, 'claude_code', st, ms, day)
+    desktop = obj.get('entrypoint') == 'claude-desktop'
+    site = 'claude_desktop_code' if desktop else 'claude_code'
+    # 桌面软件的时长由前台应用采样统计；会话相邻事件不能再重复计时。
+    if not desktop:
+        _add_time(days, site, st, ms, day)
     msg = obj.get('message') if obj.get('type') == 'assistant' else None
     usage = isinstance(msg, dict) and msg.get('usage')
     if not usage:
@@ -59,7 +66,7 @@ def _claude_line(obj, days, st, quota):
         return
     seen.append(mid)
     del seen[:-50]
-    b = _bucket(days, day, 'claude_code')
+    b = _bucket(days, day, site)
     b['tok'] += (usage.get('input_tokens') or 0) + (usage.get('cache_creation_input_tokens') or 0) \
         + (usage.get('output_tokens') or 0)
     b['cache'] += usage.get('cache_read_input_tokens') or 0
@@ -69,9 +76,14 @@ def _codex_line(obj, days, st, quota):
     ts = obj.get('timestamp')
     if not ts:
         return
-    ms, day = _ts(ts)
-    _add_time(days, 'codex', st, ms, day)
     p = obj.get('payload') or {}
+    if obj.get('type') == 'session_meta':
+        originator = str(p.get('originator') or '').lower()
+        st['desktop'] = 'desktop' in originator
+    ms, day = _ts(ts)
+    site = 'codex_desktop_code' if st.get('desktop') else 'codex'
+    if not st.get('desktop'):
+        _add_time(days, site, st, ms, day)
     if obj.get('type') != 'event_msg' or p.get('type') != 'token_count':
         return
     info = p.get('info') or {}
@@ -81,7 +93,7 @@ def _codex_line(obj, days, st, quota):
     if total is not None and total != st.get('total') and last:
         st['total'] = total
         cached = last.get('cached_input_tokens') or 0
-        b = _bucket(days, day, 'codex')
+        b = _bucket(days, day, site)
         b['tok'] += max(0, (last.get('input_tokens') or 0) - cached) + (last.get('output_tokens') or 0)
         b['cache'] += cached
     rl = p.get('rate_limits') or {}
@@ -110,10 +122,16 @@ PARSERS = {'claude_code': _claude_line, 'codex': _codex_line}
 
 def scan(state):
     """state: {'files': {...}, 'days': {...}, 'quota': {'codex': {...}}}，原地更新；返回是否有新数据。"""
+    changed = False
+    if state.get('collector_version') != COLLECTOR_VERSION:
+        # v2 开始按 entrypoint 拆分 Claude CLI 与桌面 Code。旧汇总无法安全相减，
+        # 因此只在升级时从会话记录重建一次，避免历史数据重复。
+        state.clear()
+        state['collector_version'] = COLLECTOR_VERSION
+        changed = True
     files = state.setdefault('files', {})
     days = state.setdefault('days', {})
     quotas = state.setdefault('quota', {})
-    changed = False
     for site, root in SOURCES.items():
         if not root.exists():
             continue

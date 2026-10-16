@@ -56,7 +56,7 @@ bash usage-api/install.sh
 
 | 接口 | 返回 |
 | --- | --- |
-| `GET /api/usage` | `periods.day / week / month / year / all`，每项含 `claude`、`chatgpt`、`claude_code`、`codex`、`web_total`、`cli_total`、`total` 的 `minutes`、`tokens`（终端来源另有 `cache_read_tokens`）；`quota.claude / quota.codex` 的 `five_hour`、`seven_day` 剩余百分比与重置时间 |
+| `GET /api/usage` | `periods.day / week / month / year / all`，汇总网页、终端 CLI、桌面软件及可区分的桌面 Code 会话；会话来源另有 `cache_read_tokens`，桌面普通对话的 `tokens` 为 `null`；额度数据保留完整窗口供接口使用 |
 | `GET /api/usage/daily?from=2026-10-01&to=2026-10-31` | 按天明细 |
 | `GET /health` | 不需要密钥，检查服务是否在运行 |
 
@@ -70,28 +70,29 @@ const { periods } = await r.json()
 console.log(periods.month.total.minutes, periods.month.total.tokens)
 ```
 
-- 数据文件在 `~/Library/Application Support/ai-usage/usage.json`。
+- 数据文件在 `~/Library/Application Support/ai-usage/`；只保存按天汇总、采样状态和接口配置。
 - 写入只接受浏览器扩展和带密钥的本机程序；网页用量同步时按天取较大值，所以重装扩展、清空扩展存储也不会冲掉已有记录。
 - 终端 token 的算法：未命中缓存的输入 + 写缓存 + 输出；命中缓存的输入单独记为 `cache_read_tokens`（数量很大但便宜）。时长：同一会话里相邻两条记录间隔不超过 5 分钟的部分相加。
+- 桌面时长由同一个 usage-api 进程每 60 秒采样前台应用；锁屏或空闲超过 5 分钟不计。普通 Claude / ChatGPT 桌面对话没有 token 记录；能从会话元数据识别的 Code token 单列，并从终端 CLI 扣除。
 - 只能在这台 Mac 上访问。在线网页（https）也能读，Chrome 会自动做本机访问的预检。
 
 ### 个人工作台（公开网站）
 
 公开地址：<https://wzp42406-eng.github.io/ai-workbench/>（谁都能看）。本机也能打开同一个页面：<http://127.0.0.1:8787/>。页面源文件是 [`site/index.html`](site/index.html)，只有两个板块：
 
-- **AI 用量**：今日 / 本周 / 本月 / 今年 / 累计的时长、token、缓存命中；四个来源分别列出；Claude 和 Codex 的 5 小时 / 7 天额度；近 14 天使用时长堆叠柱（悬停看明细，可展开数据表）。
+- **AI 用量**：顶部今日总览；网页端、终端 CLI、桌面软件三块明细均可切换今日 / 本周 / 本月 / 今年 / 累计；Claude 和 Codex 只显示 5 小时额度单环；近 14 天按三端分色（悬停看明细，可展开数据表）。
 - **英语 · 跟读为主**：一句一句练。`空格` 听原音（可慢速、跟着高亮），`R` 开始 / 结束跟读，读完按语音识别结果给每个词打勾或标红并打分，还能回放自己的录音和原音对比；`←` `→` 换句。自带需求访谈、方案演示、回应异议、会后跟进、日常沟通五组材料，也可以粘贴自己的邮件或演讲稿练。每天目标 10 句，记录练习分钟数和连续天数。
 - **生词 · 辅助**：小卡片间隔复习（每天 5 张新卡），可添加、删除。
 
-数据怎么到公开网站：`usage-api/publish.py` 由 launchd 每 12 小时运行一次（`install.sh` 安装，登录时也会跑一次），用本机 `gh` 账号把最新快照 `data.json` 和页面上传到 `wzp42406-eng/ai-workbench` 仓库，GitHub Pages 随即更新。快照只有按天的时长、token 和额度百分比，没有密钥、文件路径、会话 ID 或对话内容。手动立刻更新：`python3 usage-api/publish.py`。日志在 `~/Library/Logs/ai-usage-publish.log`。
+数据怎么到公开网站：`usage-api/publish.py` 由 launchd 每 1 小时运行一次（`install.sh` 安装，登录时也会跑一次），用本机 `gh` 账号把最新快照 `data.json` 和页面上传到 `wzp42406-eng/ai-workbench` 仓库，GitHub Pages 随即更新。快照只有按天的时长、token 和额度百分比，没有密钥、文件路径、会话 ID 或对话内容。手动立刻更新：`python3 usage-api/publish.py`。日志在 `~/Library/Logs/ai-usage-publish.log`。
 
 英语的练习记录和生词存在各自浏览器里（每个访客各有一份，不会上传）。语音评分用浏览器自带的语音识别：Chrome / Edge / Safari 支持，Chrome 会把录音发到 Google 识别；不支持的浏览器仍可录音回放。
 
 ## Claude Code 插件（quota-band）
 
-和网页扩展同一种表现：同心圆外圈是 5 小时额度（灰）、内圈是 7 天额度（红），弧长代表剩余量，旁边只显示 5 小时剩余百分比。桌面 App 的 Code 页用矢量圆环；终端用盲文点阵画圆环（占 3 行，空间不够时退化为单行文字）。数据来自 Claude Code 自己记录的额度窗口，每次回复后更新。
+和网页扩展同一种表现：只画 5 小时额度的灰色单环，弧长代表剩余量，旁边显示剩余百分比。桌面 App 的 Code 页用矢量圆环；终端用盲文点阵画圆环（占 3 行，空间不够时退化为单行文字）。数据来自 Claude Code 自己记录的额度窗口，每次回复后更新。
 
-装了本机用量 API（见上）后，同一行会区分显示 Claude 与 Codex，例如 `Claude 33% │ 今日 2h44m · 1.1M ‖ Codex 5h 72% · 周 40% │ 今日 38m · 310k`。Codex 的用量、额度和重置时间都复用 `usage-api/collect.py` 从会话记录采集的结果；5 小时额度超过 5 小时没有新事件时显示 `Codex —`。终端变窄时依次省略重置时间和用量，优先保留余量百分比。插件也会把 Claude 额度报给 API，工作台就能读到。
+装了本机用量 API（见上）后，同一行会区分显示 Claude 与 Codex，例如 `Claude 33% · 今日 2h44m · 1.1M  │  Codex 72% · 今日 38m · 310k`。Codex 的用量和额度复用 `usage-api/collect.py` 从会话记录采集的结果；5 小时额度超过 5 小时没有新事件时显示 `Codex —`。终端变窄时省略用量，优先保留余量百分比。插件也会把 Claude 额度报给 API，工作台就能读到。
 
 在 Claude Code 终端里：
 
